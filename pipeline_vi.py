@@ -257,6 +257,8 @@ def run_pipeline_vi(
     resume_dir: str | None = None,
     bg_mode: str = "demucs",
     bg_duck_db: float = -12.0,
+    sub_style: str = "white",
+    overlay_type: str = "default",
 ) -> dict:
     start_time = time.time()
 
@@ -445,7 +447,14 @@ def run_pipeline_vi(
         logger.info("=" * 60)
         logger.info("STEP 7: Creating dubbed video")
         dubbed_video_path = os.path.join(work_dir, "dubbed_video.mp4")
-        merge_video(video_path, merged_audio_path, dubbed_video_path)
+        merge_video(
+            video_path,
+            merged_audio_path,
+            dubbed_video_path,
+            subtitle_path=transcript_vi_srt_path,
+            sub_style=sub_style,
+            overlay_type=overlay_type,
+        )
 
     # --- Step 8: Generate thumbnails + YouTube metadata ---
     content_result = {"thumbnails": [], "metadata": {}}

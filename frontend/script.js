@@ -1,13 +1,17 @@
+const body = document.body;
+const mainContainer = document.querySelector("#main-container");
 const form = document.querySelector("#translate-form");
 const startButton = document.querySelector("#start-button");
-const resetButton = document.querySelector("#reset-button");
+const exportButton = document.querySelector("#export-button");
 const formMessage = document.querySelector("#form-message");
-const emptyState = document.querySelector("#empty-state");
 const progressPanel = document.querySelector("#progress-panel");
 const statusTitle = document.querySelector("#status-title");
 const statusPill = document.querySelector("#status-pill");
+const systemState = document.querySelector("#system-state");
 const progressFill = document.querySelector("#progress-fill");
+const progressText = document.querySelector("#progress-text");
 const progressCopy = document.querySelector("#progress-copy");
+const stepIndicator = document.querySelector("#step-indicator");
 const translationIdEl = document.querySelector("#translation-id");
 const workDirEl = document.querySelector("#work-dir");
 const logsOutput = document.querySelector("#logs-output");
@@ -15,11 +19,29 @@ const refreshLogsButton = document.querySelector("#refresh-logs");
 const dropZone = document.querySelector("#drop-zone");
 const videoFileInput = document.querySelector("#video-file");
 const fileNameEl = document.querySelector("#file-name");
+const themeToggle = document.querySelector("#theme-toggle");
+const subtitleList = document.querySelector("#subtitle-list");
+const previewVideo = document.querySelector("#preview-video");
+const previewSubtitle = document.querySelector("#preview-subtitle");
+const blurBox = document.querySelector("#blur-box");
+const videoBg = document.querySelector("#video-bg");
+const resizeHandle = document.querySelector("#resize-handle");
+const previewBoxText = document.querySelector("#preview-box-text");
+const stylePanel = document.querySelector("#panel-style-presets");
+const overlayPanel = document.querySelector("#panel-overlay-presets");
 
 const STORAGE_KEY = "autoTranslateVideo.preferences";
 let pollTimer = null;
 let currentTranslationId = null;
 let selectedVideoFile = null;
+let previewObjectUrl = null;
+let selectedSubStyle = "white";
+let selectedOverlayType = "default";
+let isDraggingMask = false;
+let isResizingMask = false;
+let startY = 0;
+let startTop = 0;
+let startHeight = 0;
 
 const friendlyCopy = {
   queued: "Đã nhận tác vụ, đang xếp hàng xử lý...",
@@ -35,6 +57,10 @@ function loadPreferences() {
     const input = form.elements[name];
     if (input && value) input.value = value;
   }
+  if (saved.theme === "dark") {
+    body.classList.add("dark");
+    themeToggle.textContent = "Chế độ sáng";
+  }
 }
 
 function savePreferences() {
@@ -43,7 +69,8 @@ function savePreferences() {
     targetLanguage: data.targetLanguage,
     sourceLang: data.sourceLang,
     bgmMode: data.bgmMode,
-    targetVoice: data.targetVoice
+    targetVoice: data.targetVoice,
+    theme: body.classList.contains("dark") ? "dark" : "light"
   }));
 }
 
@@ -52,12 +79,40 @@ function setMessage(message, isError = false) {
   formMessage.classList.toggle("error", isError);
 }
 
+function setSystemState(status) {
+  const labelMap = {
+    queued: "Đang chờ",
+    running: "Đang chạy",
+    translate_pending: "Chờ dịch",
+    succeeded: "Hoàn tất",
+    failed: "Bị lỗi",
+    idle: "Chờ cấu hình"
+  };
+  systemState.textContent = labelMap[status] || "Chờ cấu hình";
+  systemState.className = `state-pill ${status || "waiting"}`;
+}
+
 function setSelectedFile(file) {
   selectedVideoFile = file || null;
+  if (previewObjectUrl) {
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = null;
+  }
   fileNameEl.textContent = selectedVideoFile
     ? `${selectedVideoFile.name} (${formatFileSize(selectedVideoFile.size)})`
-    : "Hỗ trợ mp4, mov, mkv, webm...";
+    : "MP4, MOV, MKV, WEBM";
   dropZone.classList.toggle("has-file", Boolean(selectedVideoFile));
+  if (selectedVideoFile) {
+    previewObjectUrl = URL.createObjectURL(selectedVideoFile);
+    previewVideo.src = previewObjectUrl;
+    previewVideo.hidden = false;
+    previewVideo.load();
+    previewVideo.play().catch(() => {});
+  } else {
+    previewVideo.removeAttribute("src");
+    previewVideo.hidden = true;
+    previewVideo.load();
+  }
 }
 
 function formatFileSize(bytes) {
@@ -79,6 +134,8 @@ function buildJsonPayload() {
     source_lang: data.sourceLang,
     bgm_mode: data.bgmMode,
     target_voice: data.targetVoice,
+    sub_style: selectedSubStyle,
+    overlay_type: selectedOverlayType,
     skip_video: false
   };
 
@@ -95,6 +152,8 @@ function buildUploadUrl() {
     source_lang: data.sourceLang,
     bgm_mode: data.bgmMode,
     target_voice: data.targetVoice,
+    sub_style: selectedSubStyle,
+    overlay_type: selectedOverlayType,
     skip_video: "false"
   });
 
@@ -113,6 +172,8 @@ async function startTranslation(event) {
   }
 
   startButton.disabled = true;
+  exportButton.disabled = true;
+  setSystemState("queued");
   setMessage(selectedVideoFile ? "Đang upload video và đưa tác vụ vào hàng chờ..." : "Đang gửi tác vụ vào hàng chờ...");
 
   try {
@@ -123,12 +184,14 @@ async function startTranslation(event) {
     currentTranslationId = translation.translation_id;
     showProgress();
     updateProgress(translation);
-    setMessage("Đã bắt đầu xử lý. Bạn theo dõi tiến trình bên phải nhé.");
+    setMessage("Đã bắt đầu xử lý. Bạn theo dõi tiến trình ở phía dưới nhé.");
     startPolling();
   } catch (error) {
+    setSystemState("failed");
     setMessage(`Chưa gửi được tác vụ: ${error.message}`, true);
   } finally {
     startButton.disabled = false;
+    exportButton.disabled = false;
   }
 }
 
@@ -163,7 +226,6 @@ async function readError(response) {
 }
 
 function showProgress() {
-  emptyState.classList.add("hidden");
   progressPanel.classList.remove("hidden");
 }
 
@@ -205,19 +267,34 @@ async function fetchLogs() {
 function updateProgress(translation) {
   const status = translation.status || "queued";
   const percent = Math.max(0, Math.min(100, translation.progress_percent || 0));
-  const step = translation.current_step || "Đang chuẩn bị...";
+  const step = translation.current_step || "Chưa có tác vụ";
 
-  statusTitle.textContent = step;
+  setSystemState(status);
+  statusTitle.textContent = `Hiện tại: ${step}`;
   statusPill.textContent = status;
-  statusPill.className = `status-pill ${status}`;
+  statusPill.className = `state-pill ${status}`;
   progressFill.style.width = `${percent}%`;
+  progressText.textContent = `Tiến trình hệ thống: ${percent}%`;
   progressCopy.textContent = buildProgressCopy(translation);
+  stepIndicator.textContent = stepLabel(percent);
   translationIdEl.textContent = translation.translation_id || "-";
   workDirEl.textContent = translation.work_dir || "-";
 
   if (translation.error) {
     setMessage(`Tác vụ lỗi ở ${translation.failed_step || "một bước chưa rõ"}: ${translation.error}`, true);
   }
+}
+
+function stepLabel(percent) {
+  if (percent >= 96) return "8/8";
+  if (percent >= 90) return "7/8";
+  if (percent >= 78) return "6/8";
+  if (percent >= 62) return "5/8";
+  if (percent >= 45) return "4/8";
+  if (percent >= 34) return "3/8";
+  if (percent >= 18) return "2/8";
+  if (percent >= 10) return "1/8";
+  return "0/8";
 }
 
 function buildProgressCopy(translation) {
@@ -241,23 +318,107 @@ function resetUi() {
   setSelectedFile(null);
   loadPreferences();
   progressPanel.classList.add("hidden");
-  emptyState.classList.remove("hidden");
   logsOutput.textContent = "Chưa có log.";
+  progressFill.style.width = "0%";
+  progressText.textContent = "Tiến trình hệ thống: 0%";
+  stepIndicator.textContent = "0/8";
+  statusTitle.textContent = "Hiện tại: Chưa có tác vụ";
+  setSystemState("idle");
   setMessage("");
 }
 
-videoFileInput.addEventListener("change", () => {
-  setSelectedFile(videoFileInput.files[0]);
+function selectSubtitleCard(card) {
+  document.querySelectorAll(".subtitle-card").forEach((item) => item.classList.remove("active"));
+  card.classList.add("active");
+  const textarea = card.querySelector("textarea");
+  previewSubtitle.textContent = textarea.value.trim() || card.dataset.previewText || "Phụ đề dịch sẽ nằm ở đây";
+}
+
+function switchPresetTab(tabType) {
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tabType);
+  });
+  stylePanel.classList.toggle("hidden", tabType !== "style");
+  overlayPanel.classList.toggle("hidden", tabType !== "overlay");
+}
+
+function selectStylePreset(button) {
+  stylePanel.querySelectorAll(".preset-card").forEach((item) => item.classList.remove("active"));
+  button.classList.add("active");
+  previewSubtitle.className = "preview-subtitle";
+  const style = button.dataset.style;
+  selectedSubStyle = style || "white";
+  if (style === "yellow") previewSubtitle.classList.add("preset-yellow");
+  if (style === "red") previewSubtitle.classList.add("preset-red");
+  if (style === "cyan") previewSubtitle.classList.add("preset-cyan");
+}
+
+function selectOverlayPreset(button) {
+  overlayPanel.querySelectorAll(".preset-card").forEach((item) => item.classList.remove("active"));
+  button.classList.add("active");
+  blurBox.classList.remove("overlay-solid", "overlay-soft", "overlay-none");
+  const overlay = button.dataset.overlay;
+  selectedOverlayType = overlay || "default";
+  if (overlay === "solid") blurBox.classList.add("overlay-solid");
+  if (overlay === "soft") blurBox.classList.add("overlay-soft");
+  if (overlay === "none") blurBox.classList.add("overlay-none");
+  previewBoxText.textContent = button.textContent.trim();
+}
+
+function onMaskMove(event) {
+  const deltaY = event.clientY - startY;
+  const containerHeight = videoBg.offsetHeight;
+  if (isDraggingMask) {
+    let newTop = startTop + deltaY;
+    newTop = Math.max(0, Math.min(containerHeight - blurBox.offsetHeight, newTop));
+    blurBox.style.top = `${newTop}px`;
+    blurBox.style.bottom = "auto";
+  }
+  if (isResizingMask) {
+    let newHeight = startHeight - deltaY;
+    let newTop = startTop + deltaY;
+    if (newHeight > 28 && newTop > 0) {
+      blurBox.style.height = `${newHeight}px`;
+      blurBox.style.top = `${newTop}px`;
+      blurBox.style.bottom = "auto";
+    }
+  }
+}
+
+function stopMaskInteraction() {
+  isDraggingMask = false;
+  isResizingMask = false;
+  document.removeEventListener("mousemove", onMaskMove);
+  document.removeEventListener("mouseup", stopMaskInteraction);
+}
+
+blurBox.addEventListener("mousedown", (event) => {
+  if (event.target === resizeHandle) return;
+  isDraggingMask = true;
+  startY = event.clientY;
+  startTop = blurBox.offsetTop;
+  document.addEventListener("mousemove", onMaskMove);
+  document.addEventListener("mouseup", stopMaskInteraction);
 });
+
+resizeHandle.addEventListener("mousedown", (event) => {
+  event.stopPropagation();
+  isResizingMask = true;
+  startY = event.clientY;
+  startTop = blurBox.offsetTop;
+  startHeight = blurBox.offsetHeight;
+  document.addEventListener("mousemove", onMaskMove);
+  document.addEventListener("mouseup", stopMaskInteraction);
+});
+
+videoFileInput.addEventListener("change", () => setSelectedFile(videoFileInput.files[0]));
 
 dropZone.addEventListener("dragover", (event) => {
   event.preventDefault();
   dropZone.classList.add("is-dragging");
 });
 
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("is-dragging");
-});
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("is-dragging"));
 
 dropZone.addEventListener("drop", (event) => {
   event.preventDefault();
@@ -269,9 +430,49 @@ dropZone.addEventListener("drop", (event) => {
   }
 });
 
+subtitleList.addEventListener("click", (event) => {
+  const card = event.target.closest(".subtitle-card");
+  if (card) selectSubtitleCard(card);
+});
+
+subtitleList.addEventListener("input", (event) => {
+  if (event.target.matches("textarea")) {
+    const card = event.target.closest(".subtitle-card");
+    if (card && card.classList.contains("active")) {
+      previewSubtitle.textContent = event.target.value.trim() || "Phụ đề dịch sẽ nằm ở đây";
+    }
+  }
+});
+
+document.querySelectorAll(".tab-button").forEach((button) => {
+  button.addEventListener("click", () => switchPresetTab(button.dataset.tab));
+});
+
+stylePanel.addEventListener("click", (event) => {
+  const button = event.target.closest(".preset-card");
+  if (button) selectStylePreset(button);
+});
+
+overlayPanel.addEventListener("click", (event) => {
+  const button = event.target.closest(".preset-card");
+  if (button) selectOverlayPreset(button);
+});
+
+themeToggle.addEventListener("click", () => {
+  body.classList.toggle("dark");
+  themeToggle.textContent = body.classList.contains("dark") ? "Chế độ sáng" : "Chế độ tối";
+  savePreferences();
+});
+
+document.querySelector("#load-video-button").addEventListener("click", () => {
+  const input = document.querySelector("#video-url");
+  input.focus();
+  setMessage("Dán link hoặc chọn file xong bấm nút chạy pipeline nhé.");
+});
+
 form.addEventListener("submit", startTranslation);
-resetButton.addEventListener("click", resetUi);
 refreshLogsButton.addEventListener("click", fetchLogs);
 form.addEventListener("change", savePreferences);
 
 loadPreferences();
+setSystemState("idle");

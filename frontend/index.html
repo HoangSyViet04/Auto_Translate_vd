@@ -7,135 +7,184 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="workspace" aria-labelledby="app-title">
-        <div class="intro">
-          <p class="eyebrow">Auto Translate Video</p>
-          <h1 id="app-title">Dịch và lồng tiếng video theo từng bước rõ ràng.</h1>
-          <p class="subcopy">
-            Dán link hoặc thả file video, chọn giọng đọc và chế độ nhạc nền. Hệ thống sẽ chạy nền,
-            báo tiến trình ngắn gọn để bạn biết đang xử lý tới đâu.
-          </p>
+    <main id="main-container" class="app-frame">
+      <header class="app-header">
+        <div class="brand-block">
+          <div class="brand-row">
+            <span class="brand-mark" aria-hidden="true">▰</span>
+            <h1>Auto Translate Video</h1>
+            <span class="version-badge">v2.5</span>
+          </div>
+          <p>Hệ thống bóc băng, dịch thuật và lồng tiếng tự động cho video ngắn Douyin / TikTok</p>
         </div>
 
-        <form id="translate-form" class="control-surface" autocomplete="off">
-          <div class="field-stack">
-            <label for="video-url">Video URL</label>
-            <input id="video-url" name="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
-            <p class="hint">Dùng YouTube, TikTok, Douyin hoặc để trống nếu bạn upload file bên dưới.</p>
-          </div>
+        <div class="header-actions">
+          <button id="theme-toggle" class="light-button" type="button">Chế độ tối</button>
+          <span id="system-state" class="state-pill waiting">Chờ cấu hình</span>
+        </div>
+      </header>
 
-          <div class="field-stack">
-            <label for="video-file">File video</label>
+      <form id="translate-form" class="workspace-grid" autocomplete="off">
+        <section class="panel subtitle-panel" aria-labelledby="subtitle-title">
+          <h2 id="subtitle-title">Biên tập phụ đề dịch thuật (Gemini)</h2>
+
+          <div id="subtitle-list" class="subtitle-list">
+            <article class="subtitle-card active" data-preview-text="Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?">
+              <span class="timecode">00:00.11</span>
+              <p class="source-text">你有没有吃过又浪漫又高端又珍贵的喜马拉雅玫瑰盐</p>
+              <textarea rows="2">Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?</textarea>
+            </article>
+
+            <article class="subtitle-card" data-preview-text="Toàn là bị thổi phồng thôi, bạn bị tẩy não rồi. Ở Pakistan,">
+              <span class="timecode">00:04.21</span>
+              <p class="source-text">都完毒的灿你被洗脑掉在巴基斯坦</p>
+              <textarea rows="2">Toàn là bị thổi phồng thôi, bạn bị tẩy não rồi. Ở Pakistan,</textarea>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel video-panel" aria-labelledby="video-title">
+          <div class="panel-group">
+            <h2 id="video-title">Nguồn video đầu vào</h2>
+            <div class="source-row">
+              <input id="video-url" name="videoUrl" type="url" placeholder="Dán link Douyin, TikTok, YouTube..." />
+              <button id="load-video-button" class="dark-button" type="button">Tải video</button>
+            </div>
+
             <label id="drop-zone" class="drop-zone" for="video-file">
               <input id="video-file" name="videoFile" type="file" accept="video/*" />
-              <span class="drop-title">Thả video vào đây hoặc bấm để chọn file</span>
-              <span id="file-name" class="drop-hint">Hỗ trợ mp4, mov, mkv, webm...</span>
+              <strong>Thả video hoặc bấm để chọn file</strong>
+              <span id="file-name">MP4, MOV, MKV, WEBM</span>
             </label>
           </div>
 
-          <div class="config-grid">
-            <div class="field-stack">
-              <label for="target-language">Ngôn ngữ đích</label>
-              <select id="target-language" name="targetLanguage">
-                <option value="vi">Tiếng Việt</option>
-                <option value="jp">Tiếng Nhật</option>
-              </select>
-            </div>
-
-            <div class="field-stack">
-              <label for="source-lang">Ngôn ngữ nguồn</label>
-              <select id="source-lang" name="sourceLang">
-                <option value="zh">Trung</option>
-                <option value="en">Anh</option>
-                <option value="ja">Nhật</option>
-                <option value="vi">Việt</option>
-              </select>
-            </div>
-
-            <div class="field-stack">
-              <label for="bgm-mode">Nhạc nền</label>
-              <select id="bgm-mode" name="bgmMode">
-                <option value="demucs">Tách vocal bằng Demucs</option>
-                <option value="duck">Giữ audio gốc nhỏ lại</option>
-                <option value="none">Không giữ audio gốc</option>
-              </select>
-            </div>
-
-            <div class="field-stack">
-              <label for="target-voice">Giọng đọc</label>
-              <select id="target-voice" name="targetVoice">
-                <option value="male">Nam</option>
-                <option value="female">Nữ</option>
-                <option value="ja-JP-KeitaNeural">ja-JP-KeitaNeural</option>
-                <option value="ja-JP-NanamiNeural">ja-JP-NanamiNeural</option>
-              </select>
+          <div class="panel-group preview-group">
+            <h2>Căn chỉnh vùng che sub</h2>
+            <div class="video-shell">
+              <div id="video-bg" class="phone-preview">
+                <video id="preview-video" class="preview-video" muted controls playsinline hidden></video>
+                <div id="blur-box" class="mask-box">
+                  <span id="preview-box-text">Mặc định / Hộp đen</span>
+                  <p id="preview-subtitle" class="preview-subtitle">Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?</p>
+                  <span id="resize-handle" class="resize-handle" aria-hidden="true"></span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="field-stack">
-            <label for="resume-dir">Resume folder</label>
-            <input id="resume-dir" name="resumeDir" type="text" placeholder="output/VN/20260630120000_vi" />
-            <p class="hint">Điền khi đã có transcript dịch và muốn chạy tiếp từ work dir cũ.</p>
+          <div class="panel-footer">
+            <button id="start-button" class="neo-button run-button" type="submit">Khóa vùng che & chạy pipeline</button>
+          </div>
+        </section>
+
+        <aside class="panel config-panel" aria-labelledby="config-title">
+          <div class="config-scroll">
+            <h2 id="config-title">Hậu kỳ nâng cao</h2>
+
+            <div class="config-card">
+              <label>
+                <span>Ngôn ngữ nguồn / đích:</span>
+                <div class="two-cols">
+                  <select id="source-lang" name="sourceLang">
+                    <option value="zh">Trung (Douyin)</option>
+                    <option value="en">Anh</option>
+                    <option value="ja">Nhật</option>
+                    <option value="vi">Việt</option>
+                  </select>
+                  <select id="target-language" name="targetLanguage">
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="jp">Tiếng Nhật</option>
+                  </select>
+                </div>
+              </label>
+
+              <div class="two-cols">
+                <label>
+                  <span>Giọng đọc AI:</span>
+                  <select id="target-voice" name="targetVoice">
+                    <option value="male">Nam miền Bắc</option>
+                    <option value="female">Nữ miền Nam</option>
+                    <option value="ja-JP-KeitaNeural">ja-JP-Keita</option>
+                    <option value="ja-JP-NanamiNeural">ja-JP-Nanami</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Nhạc nền BGM:</span>
+                  <select id="bgm-mode" name="bgmMode">
+                    <option value="demucs">Demucs</option>
+                    <option value="duck">Duck</option>
+                    <option value="none">Không giữ</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <label class="resume-field">
+              <span>Resume folder</span>
+              <input id="resume-dir" name="resumeDir" type="text" placeholder="output/VN/20260630120000_vi" />
+            </label>
+
+            <div class="config-card">
+              <div class="tabs" role="tablist" aria-label="Tùy chỉnh hiển thị">
+                <button id="tab-style-btn" class="tab-button active" type="button" data-tab="style">Style chữ</button>
+                <button id="tab-overlay-btn" class="tab-button" type="button" data-tab="overlay">Lớp phủ che</button>
+              </div>
+
+              <div id="panel-style-presets" class="preset-grid">
+                <button class="preset-card preset-white active" type="button" data-style="white">Xin chào</button>
+                <button class="preset-card preset-yellow" type="button" data-style="yellow">Xin chào</button>
+                <button class="preset-card preset-red" type="button" data-style="red">Xin chào</button>
+                <button class="preset-card preset-cyan" type="button" data-style="cyan">Xin chào</button>
+              </div>
+
+              <div id="panel-overlay-presets" class="preset-grid hidden">
+                <button class="preset-card active" type="button" data-overlay="default">Mặc định</button>
+                <button class="preset-card" type="button" data-overlay="solid">Hộp đen</button>
+                <button class="preset-card" type="button" data-overlay="soft">Mờ 50%</button>
+                <button class="preset-card" type="button" data-overlay="none">Không che</button>
+              </div>
+            </div>
           </div>
 
-          <div class="actions">
-            <button id="start-button" class="primary-action" type="submit">
-              <span>Bắt đầu dịch</span>
-            </button>
-            <button id="reset-button" class="ghost-action" type="button">Làm mới</button>
-          </div>
+          <button id="export-button" class="export-button" type="submit">Xuất video thành phẩm</button>
+        </aside>
+      </form>
 
-          <p id="form-message" class="form-message" role="status"></p>
-        </form>
+      <footer class="progress-footer">
+        <div class="progress-meta">
+          <div>
+            <span id="step-indicator" class="step-badge">0/8</span>
+            <span id="status-title">Hiện tại: Chưa có tác vụ</span>
+          </div>
+          <strong id="progress-text">Tiến trình hệ thống: 0%</strong>
+        </div>
+        <div class="progress-track">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </footer>
+
+      <section id="progress-panel" class="log-drawer hidden" aria-label="Log tác vụ">
+        <div class="log-head">
+          <div>
+            <span id="status-pill" class="state-pill">queued</span>
+            <span id="progress-copy">Đang xếp hàng xử lý...</span>
+          </div>
+          <button id="refresh-logs" class="small-button" type="button">Tải lại log</button>
+        </div>
+        <dl class="task-meta">
+          <div>
+            <dt>Mã tác vụ</dt>
+            <dd id="translation-id">-</dd>
+          </div>
+          <div>
+            <dt>Work dir</dt>
+            <dd id="work-dir">-</dd>
+          </div>
+        </dl>
+        <pre id="logs-output" class="logs-output">Chưa có log.</pre>
       </section>
 
-      <aside class="status-surface" aria-labelledby="status-title">
-        <div id="empty-state" class="empty-state">
-          <div class="film-figure" aria-hidden="true">
-            <div class="film-reel reel-left"></div>
-            <div class="film-reel reel-right"></div>
-            <div class="film-body"></div>
-            <div class="film-strip"></div>
-          </div>
-          <h2>Chưa có tác vụ nào</h2>
-          <p>Dán link hoặc thả video rồi bấm bắt đầu. Tiến trình sẽ hiện ở đây theo từng bước.</p>
-        </div>
-
-        <div id="progress-panel" class="progress-panel hidden">
-          <div class="status-header">
-            <div>
-              <p class="eyebrow">Tiến trình</p>
-              <h2 id="status-title">Đang chuẩn bị...</h2>
-            </div>
-            <span id="status-pill" class="status-pill">queued</span>
-          </div>
-
-          <div class="progress-track" aria-label="Tiến trình xử lý">
-            <div id="progress-fill" class="progress-fill"></div>
-          </div>
-          <p id="progress-copy" class="progress-copy">Đang xếp hàng xử lý, bạn đợi chút nhé...</p>
-
-          <dl class="status-details">
-            <div>
-              <dt>Mã tác vụ</dt>
-              <dd id="translation-id">-</dd>
-            </div>
-            <div>
-              <dt>Work dir</dt>
-              <dd id="work-dir">-</dd>
-            </div>
-          </dl>
-
-          <section class="logs-section" aria-labelledby="logs-title">
-            <div class="logs-header">
-              <h3 id="logs-title">Tiến trình gần nhất</h3>
-              <button id="refresh-logs" class="icon-button" type="button" title="Tải lại log">↻</button>
-            </div>
-            <pre id="logs-output" class="logs-output">Chưa có log.</pre>
-          </section>
-        </div>
-      </aside>
+      <p id="form-message" class="form-message" role="status"></p>
     </main>
 
     <script src="/static/script.js" defer></script>

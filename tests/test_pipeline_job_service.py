@@ -60,6 +60,12 @@ def test_pipeline_job_service_marks_failed_step(tmp_path):
     assert "RuntimeError" in stored.traceback
 
 
+def test_pipeline_job_service_friendly_winerror2_is_actionable():
+    friendly = friendly_error_message("[WinError 2] The system cannot find the file specified")
+
+    assert "FFmpeg" in friendly
+
+
 def test_pipeline_job_service_friendly_ffmpeg_error():
     message = (
         "ERROR: You have requested merging of multiple formats but ffmpeg is not installed. "

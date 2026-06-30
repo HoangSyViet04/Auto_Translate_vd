@@ -16,6 +16,8 @@ class TranslateRequest(BaseModel):
     target_voice: str = Field(default="male", description="VI: male/female. JP: Azure voice name.")
     voice_id: str | None = Field(default=None, description="Optional LucyLab voice id override for Vietnamese")
     skip_video: bool = False
+    sub_style: Literal["white", "yellow", "red", "cyan"] = Field(default="white")
+    overlay_type: Literal["default", "solid", "soft", "none"] = Field(default="default")
     output_dir: str | None = None
 
     @model_validator(mode="after")
@@ -23,4 +25,3 @@ class TranslateRequest(BaseModel):
         if not self.video_url and not self.local_file and not self.resume_dir:
             raise ValueError("Provide video_url, local_file, or resume_dir")
         return self
-

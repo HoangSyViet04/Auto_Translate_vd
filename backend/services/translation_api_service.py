@@ -65,6 +65,8 @@ async def start_translation_upload(
     target_voice: str = Query(default="male"),
     voice_id: str | None = Query(default=None),
     skip_video: bool = Query(default=False),
+    sub_style: Literal["white", "yellow", "red", "cyan"] = Query(default="white"),
+    overlay_type: Literal["default", "solid", "soft", "none"] = Query(default="default"),
     output_dir: str | None = Query(default=None),
     resume_dir: str | None = Query(default=None),
 ) -> dict:
@@ -79,6 +81,8 @@ async def start_translation_upload(
         target_voice=target_voice,
         voice_id=voice_id,
         skip_video=skip_video,
+        sub_style=sub_style,
+        overlay_type=overlay_type,
         output_dir=output_dir,
     )
     return _start_translation_job(payload)
@@ -186,6 +190,8 @@ def _run_vi_pipeline(payload: TranslateRequest) -> dict:
         resume_dir=payload.resume_dir,
         bg_mode=payload.bgm_mode,
         bg_duck_db=payload.bg_duck_db,
+        sub_style=payload.sub_style,
+        overlay_type=payload.overlay_type,
     )
 
 
@@ -207,6 +213,8 @@ def _run_jp_pipeline(payload: TranslateRequest) -> dict:
         resume_dir=payload.resume_dir,
         bg_mode=payload.bgm_mode,
         bg_duck_db=payload.bg_duck_db,
+        sub_style=payload.sub_style,
+        overlay_type=payload.overlay_type,
     )
 
 

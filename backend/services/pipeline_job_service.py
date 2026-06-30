@@ -45,6 +45,15 @@ def _step_label(step_number: str, fallback: str = "") -> str:
 def friendly_error_message(message: str) -> str:
     """Doi loi ky thuat sang cau tieng Viet de nguoi dung doc nhanh hon."""
     lower = message.lower()
+    if (
+        "winerror 2" in lower
+        or "the system cannot find the file specified" in lower
+        or "không tìm thấy ffmpeg" in lower
+    ):
+        return (
+            "Không tìm thấy chương trình cần chạy, thường là FFmpeg. "
+            "Hãy cài FFmpeg, thêm vào PATH, rồi chạy lại tác vụ."
+        )
     if "ffmpeg is not installed" in lower or "requested merging of multiple formats" in lower:
         return (
             "Không tìm thấy FFmpeg trên máy. Hãy cài FFmpeg, thêm vào PATH, "

@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import config
 from src.utils import setup_logging
@@ -9,6 +10,10 @@ logger = setup_logging("audio_extractor")
 def extract_audio(video_path: str, output_path: str) -> str:
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video not found: {video_path}")
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError(
+            "Không tìm thấy FFmpeg. Hãy cài FFmpeg, thêm vào PATH, rồi chạy lại tác vụ."
+        )
 
     sample_rate = str(config.AUDIO_SAMPLE_RATE)
 
