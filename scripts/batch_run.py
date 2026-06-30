@@ -1,9 +1,9 @@
 """Batch Video Dubbing — Read URLs from Excel, process each, update status in same Excel.
 
 Usage:
-    python batch_run.py                                  # Use default output/video_link.xlsx
-    python batch_run.py --excel path/to/links.xlsx       # Custom Excel path
-    python batch_run.py --source-lang vi                 # Vietnamese source
+    python scripts/batch_run.py                                  # Use default output/video_link.xlsx
+    python scripts/batch_run.py --excel path/to/links.xlsx       # Custom Excel path
+    python scripts/batch_run.py --source-lang vi                 # Vietnamese source
 """
 import argparse
 import os
@@ -11,6 +11,13 @@ import sys
 from datetime import datetime
 
 from openpyxl import load_workbook
+
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
 
 import config
 from src.utils import setup_logging

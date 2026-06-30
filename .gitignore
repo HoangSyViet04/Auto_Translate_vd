@@ -1,6 +1,7 @@
 # ============================================================
 # Secrets / config
 # ============================================================
+*ycau.md/
 .env
 .env.local
 .env.*.local
@@ -8,7 +9,7 @@
 *.pem
 *_cookies.txt
 www.douyin.com_cookies.txt
-
+.agents/
 # ============================================================
 # Python
 # ============================================================
@@ -80,6 +81,8 @@ logs/
 output/
 downloads/
 input/
+data/raw/
+data/processed/
 
 # ============================================================
 # AI / dev-tool local state
@@ -98,7 +101,6 @@ input/
 list_video.json
 get_content_url.json
 video_links.txt
-scripts/
 
 # ============================================================
 # Legacy local folders

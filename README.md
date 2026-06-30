@@ -1,143 +1,314 @@
-# Auto-Translade-video
+# Auto Translate Video
 
-Tự động lồng tiếng video (YouTube / TikTok / Douyin / file local) sang **tiếng Việt** hoặc **tiếng Nhật**, giữ nguyên nhạc nền và hiệu ứng âm thanh gốc.
+Ứng dụng web + pipeline Python để tự động lồng tiếng video từ YouTube, TikTok, Douyin hoặc file local sang tiếng Việt hoặc tiếng Nhật.
 
-## Pipeline
+Luồng chính: tải video, tách audio, nhận diện giọng nói bằng Azure Speech, dịch transcript bằng Gemini, tạo TTS, mix lại audio với nhạc nền/SFX, rồi xuất video đã lồng tiếng.
 
+## Cấu trúc thư mục
+
+```text
+backend/        FastAPI entrypoint, service chạy task và quản lý log
+frontend/       Giao diện web tĩnh: index.html, style.css, script.js
+src/            Lõi pipeline: download, ASR, Gemini translate, TTS, merge audio/video, SRT
+scripts/        Script tiện ích: chạy batch, tải video, sinh content
+tests/          Unit test
+docs/specs/     Đặc tả dự án
+docs/plans/     Kế hoạch triển khai
+docs/api/       Tài liệu API backend
+data/examples/  File JSON mẫu
+output/         Kết quả chạy pipeline
+downloads/      Video tải riêng
+input/          Video input local
+logs/           Log backend/task
 ```
-URL/file → Download → Extract audio → (Demucs tách BGM)
-        → ASR (Azure Speech) → Dịch sang VI/JP (skill hoặc web AI)
-        → TTS (LucyLab cho VI, Azure cho JP)
-        → Khớp timeline → Mix với BGM → Ghép vào video
+
+Entrypoint chính ở root:
+
+```text
+pipeline_vi.py  CLI lồng tiếng Việt
+pipeline.py     CLI lồng tiếng Nhật
+config.py       Load cấu hình từ .env
 ```
 
 ## Yêu cầu
 
 - Python 3.10+
-- `ffmpeg` trong PATH
-- Tài khoản **Azure Speech** (ASR + JP TTS)
-- Tài khoản **LucyLab** (chỉ cần nếu lồng VI) – https://lucylab.io
-- (Tuỳ chọn) Google Gemini API key (để tự sinh metadata YouTube + thumbnail)
+- FFmpeg/FFprobe trong `PATH`
+- Azure Speech key/region cho ASR và TTS tiếng Nhật
+- LucyLab API key + voice id nếu lồng tiếng Việt
+- Google Gemini API key để dịch transcript tự động và sinh metadata
+- Playwright Chromium nếu cần tải Douyin
+
+## Cài đặt
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-playwright install chromium      # cần cho download Douyin
-cp .env.example .env             # rồi điền key vào
+playwright install chromium
+copy .env.example .env
 ```
 
-## Hai cách dịch — chọn 1
+Điền `.env`:
 
-Bước dịch transcript là bước **duy nhất** cần can thiệp tay. Sau khi ASR xong, pipeline tự dừng và tạo file `TRANSLATE_PENDING.txt` trong work dir, chứa hướng dẫn cụ thể cho cả 2 cách dưới.
+```ini
+AZURE_SPEECH_KEY=...
+AZURE_SPEECH_REGION=japaneast
 
-### Cách A — Người dùng Claude Code (full auto)
+VIETNAMESE_API_KEY=...
+VIETNAMESE_VOICEID_MALE=...
+VIETNAMESE_VOICEID_FEMALE=...
 
-Mở repo trong [Claude Code](https://claude.com/claude-code) và bảo:
+TTS_VOICE=ja-JP-KeitaNeural
+DEFAULT_SOURCE_LANG=en-US
+OUTPUT_DIR=./output
 
-> Translate the transcript at `output/VN/2026xxxx_vi` to Vietnamese.
-
-Hoặc gọi skill trực tiếp:
-
+GOOGLE_API_KEY=...
 ```
-/translate-video-segments
-```
 
-Skill đọc `transcript_original.json`, dịch theo style rules (xem `.claude/skills/translate-video-segments/`), ghi `transcript_vi.json`. Pipeline tự resume.
+Bạn cũng có thể dùng tên cũ `google_api_key=...`; code hiện hỗ trợ cả hai.
 
-Toàn bộ workflow từ link đến video xuất ra **chạy 1 lần — không cần can thiệp** vì Claude Code tự chạy `pipeline_vi.py` phase 1, gọi skill, rồi chạy `--resume`.
+## Chạy web app
 
-### Cách B — Không có Claude Code, không cần API key (ChatGPT / Gemini web)
-
-Khi pipeline dừng, mở `<work_dir>/TRANSLATE_PENDING.txt`. File này chứa sẵn một **prompt chuẩn** + hướng dẫn từng bước:
-
-1. Mở `transcript_original.json` trong work dir
-2. Mở ChatGPT hoặc Gemini (web). Bắt đầu chat mới
-3. Copy đoạn `----- PROMPT TO COPY -----` từ `TRANSLATE_PENDING.txt`, dán vào chat, dán tiếp nội dung `transcript_original.json` rồi gửi
-4. AI trả về một JSON array. Copy lại
-5. Lưu thành `transcript_vi.json` (UTF-8) cùng folder với `transcript_original.json`
-6. Chạy resume:
-
-   ```bash
-   python pipeline_vi.py --resume "<work_dir>" --file <video_gốc.mp4>
-   ```
-
-Pipeline phát hiện file dịch, skip bước dịch, tiếp tục TTS → mix → xuất video.
-
-> **Lưu ý:** prompt trong `TRANSLATE_PENDING.txt` đã bao gồm rules giọng văn YouTube (bạn/mình/các bạn, drop tiếng đệm 啊/呢/嘛, pinyin tên Trung, romanization tên Hàn), rules length-aware theo duration mỗi segment, và format JSON output strict.
-
-## Sử dụng
-
-### Lồng tiếng Việt
+Khởi động backend:
 
 ```bash
-# YouTube/Douyin URL
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Mở giao diện:
+
+```text
+http://localhost:8000
+```
+
+Mở Swagger UI:
+
+```text
+http://localhost:8000/docs
+```
+
+Kiểm tra health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+## API chính
+
+API không dùng `/job` hoặc `/jobs`. Endpoint chính là:
+
+```text
+POST /api/translate
+POST /api/translate/upload
+GET  /api/translations
+GET  /api/translate/{translation_id}
+GET  /api/translate/{translation_id}/logs
+```
+
+Tạo task lồng tiếng Việt:
+
+```bash
+curl -X POST http://localhost:8000/api/translate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"video_url\":\"https://v.douyin.com/...\",\"target_language\":\"vi\",\"source_lang\":\"zh\",\"target_voice\":\"male\",\"bgm_mode\":\"demucs\"}"
+```
+
+Body mẫu:
+
+```json
+{
+  "video_url": "https://...",
+  "local_file": null,
+  "resume_dir": null,
+  "target_language": "vi",
+  "source_lang": "zh",
+  "target_voice": "male",
+  "skip_video": false,
+  "bgm_mode": "demucs",
+  "bg_duck_db": -12.0
+}
+```
+
+Upload file video từ web UI sẽ gọi endpoint raw upload:
+
+```bash
+curl -X POST "http://localhost:8000/api/translate/upload?filename=video.mp4&target_language=vi&source_lang=zh&target_voice=male&bgm_mode=demucs" ^
+  -H "Content-Type: application/octet-stream" ^
+  --data-binary "@input/video.mp4"
+```
+
+File upload được lưu vào `input/uploads/`, sau đó backend chạy pipeline bằng `local_file`.
+
+Tạo task lồng tiếng Nhật:
+
+```bash
+curl -X POST http://localhost:8000/api/translate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"video_url\":\"https://www.youtube.com/watch?v=...\",\"target_language\":\"jp\",\"source_lang\":\"en\",\"target_voice\":\"ja-JP-KeitaNeural\"}"
+```
+
+Xem trạng thái và log:
+
+```bash
+curl http://localhost:8000/api/translate/<translation_id>
+curl "http://localhost:8000/api/translate/<translation_id>/logs?tail=200"
+```
+
+Mặc định endpoint logs trả tiến trình ngắn gọn bằng tiếng Việt, ví dụ `Bước 1/8: Lấy video`. Nếu cần xem log kỹ thuật đầy đủ để debug sâu:
+
+```bash
+curl "http://localhost:8000/api/translate/<translation_id>/logs?tail=200&raw=true"
+```
+
+Mỗi task có log raw riêng:
+
+```text
+logs/debug/jobs/<translation_id>.log
+```
+
+Nếu lỗi, API trả về `status=failed`, `failed_step`, `error`, `traceback` để biết lỗi ở bước nào.
+
+## Chạy CLI trực tiếp
+
+Lồng tiếng Việt:
+
+```bash
 python pipeline_vi.py --url "https://v.douyin.com/..." --source-lang zh --voice male
-
-# File local
-python pipeline_vi.py --file input/video.mp4 --source-lang zh --voice male
-
-# Tham số BGM
-python pipeline_vi.py --url ... --bg-mode demucs          # mặc định, chất lượng
-python pipeline_vi.py --url ... --bg-mode duck            # nhanh, giảm -12 dB
-python pipeline_vi.py --url ... --bg-mode duck --bg-duck-db -15
-python pipeline_vi.py --url ... --bg-mode none            # bỏ BGM
+python pipeline_vi.py --file input/video.mp4 --source-lang zh --voice female
 ```
 
-### Lồng tiếng Nhật
+Lồng tiếng Nhật:
 
 ```bash
-python pipeline.py --url ... --source-lang en --voice ja-JP-KeitaNeural
+python pipeline.py --url "https://www.youtube.com/watch?v=..." --source-lang en --voice ja-JP-KeitaNeural
+python pipeline.py --file input/video.mp4 --source-lang en
 ```
 
-### Resume sau khi dịch tay
+Chế độ nhạc nền/audio gốc:
 
 ```bash
-python pipeline_vi.py --resume "output/VN/20260601120000_vi" --file input/video.mp4
-python pipeline.py --resume "output/20260601120000" --file input/video.mp4
+python pipeline_vi.py --url "..." --source-lang zh --voice male --bg-mode demucs
+python pipeline_vi.py --url "..." --source-lang zh --voice male --bg-mode duck --bg-duck-db -15
+python pipeline_vi.py --url "..." --source-lang zh --voice male --bg-mode none
 ```
 
-### Batch nhiều video
+`demucs` cho chất lượng tốt hơn nhưng nặng. `duck` nhanh hơn vì chỉ hạ âm lượng audio gốc. `none` bỏ audio gốc và chỉ giữ TTS.
+
+## Bước dịch bằng Gemini
+
+Pipeline hiện dùng Gemini ở Step 4:
+
+- Nếu có `GOOGLE_API_KEY`, pipeline tự gọi Gemini để tạo `transcript_vi.json` hoặc `transcript_jp.json`.
+- Nếu không có key hoặc Gemini lỗi, pipeline tạo `<work_dir>/TRANSLATE_PENDING.txt`.
+- File pending có prompt sẵn để bạn dùng Gemini web thủ công, lưu lại JSON dịch, rồi resume.
+
+File dịch cần có:
+
+```text
+transcript_vi.json  field text_vi cho tiếng Việt
+transcript_jp.json  field text_jp cho tiếng Nhật
+```
+
+Resume CLI:
 
 ```bash
-python batch_run_vi.py --excel output/video_link.xlsx     # VI từ Excel
-python batch_run_json.py --json list_video.json          # VI từ JSON
-python batch_run.py --excel output/video_link.xlsx       # JP từ Excel
+python pipeline_vi.py --resume "output/VN/20260630120000_vi" --file input/video.mp4 --voice male
+python pipeline.py --resume "output/20260630120000" --file input/video.mp4
 ```
 
-## Cấu trúc output
+Resume qua backend:
 
-```
-output/VN/20260601120000_vi/
-├── <video_id>.mp4                  # video gốc đã download
-├── original_audio.wav              # audio gốc 16kHz mono
-├── no_vocals.wav                   # BGM tách (chỉ khi --bg-mode demucs)
-├── vocals.wav                      # giọng tách (chỉ khi --bg-mode demucs)
-├── transcript_original.json        # ASR output
-├── transcript_original.srt
-├── TRANSLATE_PENDING.txt           # hướng dẫn dịch (xoá sau khi dịch xong)
-├── transcript_vi.json              # bản dịch (Path A hoặc B tạo)
-├── transcript_vi.srt
-├── segments/seg_xxx.wav            # TTS từng segment
-├── dubbed_audio.wav                # audio cuối (VI + BGM)
-└── dubbed_video.mp4                # video cuối
+```bash
+curl -X POST http://localhost:8000/api/translate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"resume_dir\":\"output/VN/20260630120000_vi\",\"target_language\":\"vi\",\"target_voice\":\"male\"}"
 ```
 
-## Tính năng
+## Script tiện ích
 
-- Download Douyin (Playwright), TikTok, YouTube, 1000+ site qua yt-dlp
-- ASR Azure Speech (zh-CN, en, ja, vi, …)
-- 3 chế độ BGM:
-  - `demucs` — tách giọng/nhạc bằng Demucs (htdemucs), chất lượng cao
-  - `duck` — giảm volume audio gốc theo `--bg-duck-db` rồi đè TTS lên
-  - `none` — base silent, không giữ BGM
-- TTS:
-  - **VI** — LucyLab (giọng `male` / `female`)
-  - **JP** — Azure Neural Voice (mặc định `ja-JP-KeitaNeural`)
-- Timeline fit: tự `atempo` (max 1.4x) khi TTS dài hơn segment gốc
-- Resume từ work dir (`--resume`)
-- Batch từ Excel hoặc JSON
-- Sinh SRT (original + dịch)
-- Sinh metadata YouTube (title/description/tags) + thumbnail prompts qua Gemini (nếu có `google_api_key`)
+Chạy batch từ Excel:
 
-## License
+```bash
+python scripts/batch_run_vi.py --excel output/video_link.xlsx --source-lang zh --voice male
+python scripts/batch_run.py --excel output/video_link.xlsx --source-lang en
+```
 
-MIT.
+Chạy batch tiếng Việt từ JSON:
+
+```bash
+python scripts/batch_run_json.py --json list_video.json --source-lang zh
+```
+
+File mẫu:
+
+```text
+data/examples/list_video.example.json
+data/examples/get_content_url.example.json
+```
+
+Tải video riêng:
+
+```bash
+python scripts/download_video.py "https://www.youtube.com/watch?v=..." --output-dir downloads
+python scripts/download_video.py --file video_links.txt --output-dir downloads
+```
+
+Lấy caption/script YouTube:
+
+```bash
+python scripts/get_youtube_script.py "https://www.youtube.com/watch?v=..." --lang en,vi,ja
+```
+
+Chạy lại content generation cho video đã xong:
+
+```bash
+python scripts/run_content_gen.py
+```
+
+## Output quan trọng
+
+Nhánh Việt thường tạo:
+
+```text
+output/VN/<timestamp>_vi/
+  original_audio.wav
+  vocals.wav
+  no_vocals.wav
+  transcript_original.json
+  transcript_original.srt
+  transcript_vi.json
+  transcript_vi.srt
+  segments/
+  segments_fit/
+  fit_adjustments.json
+  audio_vi_full.wav
+  dubbed_video.mp4
+  report.json
+  timing_guide.json
+```
+
+Nhánh Nhật thường tạo:
+
+```text
+output/<timestamp>/
+  original_audio.wav
+  transcript_original.json
+  transcript_original.srt
+  transcript_jp.json
+  transcript_jp.srt
+  segments/
+  audio_jp_full.wav
+  dubbed_video.mp4
+  report.json
+  timing_guide.json
+```
+
+## Test và kiểm tra
+
+Chạy toàn bộ test:
+
+```bash
+python -m pytest tests -v
+```
+

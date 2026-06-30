@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auto Translate Video</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-labelledby="app-title">
+        <div class="intro">
+          <p class="eyebrow">Auto Translate Video</p>
+          <h1 id="app-title">Dịch và lồng tiếng video theo từng bước rõ ràng.</h1>
+          <p class="subcopy">
+            Dán link hoặc thả file video, chọn giọng đọc và chế độ nhạc nền. Hệ thống sẽ chạy nền,
+            báo tiến trình ngắn gọn để bạn biết đang xử lý tới đâu.
+          </p>
+        </div>
+
+        <form id="translate-form" class="control-surface" autocomplete="off">
+          <div class="field-stack">
+            <label for="video-url">Video URL</label>
+            <input id="video-url" name="videoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+            <p class="hint">Dùng YouTube, TikTok, Douyin hoặc để trống nếu bạn upload file bên dưới.</p>
+          </div>
+
+          <div class="field-stack">
+            <label for="video-file">File video</label>
+            <label id="drop-zone" class="drop-zone" for="video-file">
+              <input id="video-file" name="videoFile" type="file" accept="video/*" />
+              <span class="drop-title">Thả video vào đây hoặc bấm để chọn file</span>
+              <span id="file-name" class="drop-hint">Hỗ trợ mp4, mov, mkv, webm...</span>
+            </label>
+          </div>
+
+          <div class="config-grid">
+            <div class="field-stack">
+              <label for="target-language">Ngôn ngữ đích</label>
+              <select id="target-language" name="targetLanguage">
+                <option value="vi">Tiếng Việt</option>
+                <option value="jp">Tiếng Nhật</option>
+              </select>
+            </div>
+
+            <div class="field-stack">
+              <label for="source-lang">Ngôn ngữ nguồn</label>
+              <select id="source-lang" name="sourceLang">
+                <option value="zh">Trung</option>
+                <option value="en">Anh</option>
+                <option value="ja">Nhật</option>
+                <option value="vi">Việt</option>
+              </select>
+            </div>
+
+            <div class="field-stack">
+              <label for="bgm-mode">Nhạc nền</label>
+              <select id="bgm-mode" name="bgmMode">
+                <option value="demucs">Tách vocal bằng Demucs</option>
+                <option value="duck">Giữ audio gốc nhỏ lại</option>
+                <option value="none">Không giữ audio gốc</option>
+              </select>
+            </div>
+
+            <div class="field-stack">
+              <label for="target-voice">Giọng đọc</label>
+              <select id="target-voice" name="targetVoice">
+                <option value="male">Nam</option>
+                <option value="female">Nữ</option>
+                <option value="ja-JP-KeitaNeural">ja-JP-KeitaNeural</option>
+                <option value="ja-JP-NanamiNeural">ja-JP-NanamiNeural</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-stack">
+            <label for="resume-dir">Resume folder</label>
+            <input id="resume-dir" name="resumeDir" type="text" placeholder="output/VN/20260630120000_vi" />
+            <p class="hint">Điền khi đã có transcript dịch và muốn chạy tiếp từ work dir cũ.</p>
+          </div>
+
+          <div class="actions">
+            <button id="start-button" class="primary-action" type="submit">
+              <span>Bắt đầu dịch</span>
+            </button>
+            <button id="reset-button" class="ghost-action" type="button">Làm mới</button>
+          </div>
+
+          <p id="form-message" class="form-message" role="status"></p>
+        </form>
+      </section>
+
+      <aside class="status-surface" aria-labelledby="status-title">
+        <div id="empty-state" class="empty-state">
+          <div class="film-figure" aria-hidden="true">
+            <div class="film-reel reel-left"></div>
+            <div class="film-reel reel-right"></div>
+            <div class="film-body"></div>
+            <div class="film-strip"></div>
+          </div>
+          <h2>Chưa có tác vụ nào</h2>
+          <p>Dán link hoặc thả video rồi bấm bắt đầu. Tiến trình sẽ hiện ở đây theo từng bước.</p>
+        </div>
+
+        <div id="progress-panel" class="progress-panel hidden">
+          <div class="status-header">
+            <div>
+              <p class="eyebrow">Tiến trình</p>
+              <h2 id="status-title">Đang chuẩn bị...</h2>
+            </div>
+            <span id="status-pill" class="status-pill">queued</span>
+          </div>
+
+          <div class="progress-track" aria-label="Tiến trình xử lý">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <p id="progress-copy" class="progress-copy">Đang xếp hàng xử lý, bạn đợi chút nhé...</p>
+
+          <dl class="status-details">
+            <div>
+              <dt>Mã tác vụ</dt>
+              <dd id="translation-id">-</dd>
+            </div>
+            <div>
+              <dt>Work dir</dt>
+              <dd id="work-dir">-</dd>
+            </div>
+          </dl>
+
+          <section class="logs-section" aria-labelledby="logs-title">
+            <div class="logs-header">
+              <h3 id="logs-title">Tiến trình gần nhất</h3>
+              <button id="refresh-logs" class="icon-button" type="button" title="Tải lại log">↻</button>
+            </div>
+            <pre id="logs-output" class="logs-output">Chưa có log.</pre>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/static/script.js" defer></script>
+  </body>
+</html>

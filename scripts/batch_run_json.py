@@ -1,15 +1,22 @@
 """Batch Vietnamese Video Dubbing — Read from list_video.json, process sequentially.
 
 Usage:
-    python batch_run_json.py                                # Use default list_video.json
-    python batch_run_json.py --json path/to/list.json       # Custom JSON path
-    python batch_run_json.py --skip-video                   # Skip final video merge
+    python scripts/batch_run_json.py                                # Use default list_video.json
+    python scripts/batch_run_json.py --json path/to/list.json       # Custom JSON path
+    python scripts/batch_run_json.py --skip-video                   # Skip final video merge
 """
 import argparse
 import json
 import os
 import sys
 import tempfile
+
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
 
 import config
 from src.utils import setup_logging

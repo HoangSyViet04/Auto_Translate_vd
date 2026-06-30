@@ -3,6 +3,13 @@ import json
 import os
 import sys
 
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
+
 from dotenv import load_dotenv
 load_dotenv()
 

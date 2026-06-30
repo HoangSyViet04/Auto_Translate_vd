@@ -8,8 +8,8 @@
 
 **Tech Stack:** Python 3.11+, yt-dlp, FFmpeg (subprocess), azure-cognitiveservices-speech, anthropic SDK, pydub, srt, python-dotenv, argparse.
 
-**Spec:** `docs/superpowers/specs/2026-04-15-video-dubbing-pipeline-design.md`
-**Original Spec:** `video-dubbing-spec.md`
+**Spec:** `docs/specs/2026-04-15-video-dubbing-pipeline-design.md`
+**Original Spec:** `docs/specs/video-dubbing-spec.md`
 
 ---
 

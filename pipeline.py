@@ -19,6 +19,7 @@ from src.audio_extractor import extract_audio
 from src.transcriber import transcribe, save_transcript
 from src.synthesizer import synthesize_segment
 from src.translate_pending import write_hint as _write_translate_pending_hint
+from src.translator_gemini import translate_segments_with_gemini
 from src.audio_merger import merge_segments
 from src.vocal_separator import separate_vocals
 from src.video_merger import merge_video
@@ -279,17 +280,43 @@ def run_pipeline(
         generate_srt(segments, os.path.join(work_dir, "transcript_original.srt"), text_field="text")
     logger.info(f"Transcribed {len(segments)} segments")
 
-    # --- Step 4: Translate to Japanese (manual via skill or web AI) ---
+    # --- Step 4: Dich sang tieng Nhat bang Gemini, fallback sang huong dan thu cong ---
     logger.info("=" * 60)
-    logger.info("STEP 4: Loading Japanese translation")
+    logger.info("STEP 4: Translating to Japanese")
     if os.path.exists(transcript_jp_path):
         logger.info(f"Reusing existing translation: {transcript_jp_path}")
         with open(transcript_jp_path, encoding="utf-8") as f:
             segments = json.load(f)
     else:
-        _write_translate_pending_hint(work_dir, "ja-JP", source_lang)
-        logger.warning("Translation pending — see TRANSLATE_PENDING.txt in work dir")
-        return {"status": "translate_pending", "work_dir": work_dir}
+        if config.GOOGLE_API_KEY:
+            try:
+                logger.info(f"Translating with Gemini model: {config.CONTENT_MODEL_ID}")
+                segments = translate_segments_with_gemini(
+                    segments=segments,
+                    target_lang="ja-JP",
+                    source_lang=source_lang,
+                    api_key=config.GOOGLE_API_KEY,
+                    model_id=config.CONTENT_MODEL_ID,
+                )
+                save_transcript(segments, transcript_jp_path)
+                logger.info(f"Gemini translation saved: {transcript_jp_path}")
+            except Exception as e:
+                _write_translate_pending_hint(work_dir, "ja-JP", source_lang)
+                logger.error(f"Gemini translation failed: {e}", exc_info=True)
+                logger.warning("Translation pending — see TRANSLATE_PENDING.txt in work dir")
+                return {
+                    "status": "translate_pending",
+                    "work_dir": work_dir,
+                    "error": f"gemini_translation_failed: {e}",
+                }
+        else:
+            _write_translate_pending_hint(work_dir, "ja-JP", source_lang)
+            logger.warning("GOOGLE_API_KEY not set; use TRANSLATE_PENDING.txt with Gemini web")
+            return {"status": "translate_pending", "work_dir": work_dir}
+
+    transcript_jp_srt_path = os.path.join(work_dir, "transcript_jp.srt")
+    if not os.path.exists(transcript_jp_srt_path):
+        generate_srt(segments, transcript_jp_srt_path, text_field="text_jp")
 
     # --- Step 5: TTS for each segment ---
     logger.info("=" * 60)
@@ -326,7 +353,7 @@ def run_pipeline(
     if not skip_video:
         logger.info("=" * 60)
         logger.info("STEP 7: Creating dubbed video")
-        dubbed_video_path = os.path.join(work_dir, "dubbed_video.mp4")
+        dubbed_video_path = os.path.join(work_dir, "final_video.mp4")
         merge_video(video_path, merged_audio_path, dubbed_video_path)
 
     # --- Step 8: Generate thumbnails + YouTube metadata ---

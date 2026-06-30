@@ -1,16 +1,23 @@
 """Batch Vietnamese Video Dubbing — Read URLs from Excel, process each, update status.
 
 Usage:
-    python batch_run_vi.py                                  # Use default output/video_link.xlsx
-    python batch_run_vi.py --excel path/to/links.xlsx       # Custom Excel path
-    python batch_run_vi.py --voice male                     # Skip voice prompt, use male
-    python batch_run_vi.py --voice female                   # Skip voice prompt, use female
+    python scripts/batch_run_vi.py                                  # Use default output/video_link.xlsx
+    python scripts/batch_run_vi.py --excel path/to/links.xlsx       # Custom Excel path
+    python scripts/batch_run_vi.py --voice male                     # Skip voice prompt, use male
+    python scripts/batch_run_vi.py --voice female                   # Skip voice prompt, use female
 """
 import argparse
 import os
 import sys
 
 from openpyxl import load_workbook
+
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
 
 import config
 from src.utils import setup_logging

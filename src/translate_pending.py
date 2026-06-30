@@ -1,11 +1,9 @@
-"""Write TRANSLATE_PENDING.txt with instructions for both Claude Code users
-and casual users (no API key, no CLI tools — use ChatGPT / Gemini web UI).
+"""Write TRANSLATE_PENDING.txt with instructions for Gemini users.
 
 The pipeline writes this file when the translation step is reached and the
 expected translated transcript JSON does not yet exist on disk. The file is
-a self-contained set of instructions: the user picks Path A (Claude Code) or
-Path B (web AI), produces the translated JSON, and runs ``--resume`` to
-continue.
+a self-contained fallback: set GOOGLE_API_KEY to let Gemini translate
+automatically, or use Gemini web UI manually and run ``--resume`` to continue.
 """
 import os
 
@@ -56,26 +54,33 @@ Pick ONE of the two paths below to create that file, then resume.
 
 
 ==============================================================
-PATH A — Claude Code users (or anyone with Claude subscription)
+PATH A — Recommended: Gemini API auto translation
 ==============================================================
 
-In Claude Code, say:
+The pipeline can translate Step 4 automatically with Gemini.
 
-    Translate the transcript at {work_dir} to {target_name}.
+1. Put your Gemini API key in .env:
 
-(or run the skill directly: /translate-video-segments)
+    GOOGLE_API_KEY=your_google_gemini_key
 
-The translate-video-segments skill reads transcript_original.json, applies
-the same style rules shown below, and writes {out_file} with one "{out_field}"
-field added per segment.
+   You can also use the existing lowercase key name:
+
+    google_api_key=your_google_gemini_key
+
+2. Resume the pipeline:
+
+    python {resume_script} --resume "{work_dir}" --file <original_video.mp4>
+
+Gemini will read transcript_original.json, add "{out_field}" to each segment,
+write {out_file}, generate the translated SRT, then continue with TTS.
 
 
 ==============================================================
-PATH B — No API key, no Claude Code (ChatGPT / Gemini web UI)
+PATH B — No API key: use Gemini web UI manually
 ==============================================================
 
 1. Open transcript_original.json in this folder.
-2. Open ChatGPT or Gemini (web). Start a fresh chat.
+2. Open Gemini (web). Start a fresh chat.
 3. Paste the PROMPT BELOW, then paste the entire contents of
    transcript_original.json directly after it, and send.
 4. The AI returns a JSON array. Copy it.

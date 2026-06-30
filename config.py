@@ -39,5 +39,5 @@ VIDEO_URL = os.getenv("VIDEO_URL", "")
 
 # Google Gemini API (thumbnails + content generation)
 GOOGLE_API_KEY = os.getenv("google_api_key", os.getenv("GOOGLE_API_KEY", ""))
-IMAGE_MODEL_ID = os.getenv("image_model_id", "gemini-2.0-flash-exp")
-CONTENT_MODEL_ID = os.getenv("content_model_id", "gemini-2.0-flash")
+IMAGE_MODEL_ID = os.getenv("image_model_id", os.getenv("IMAGE_MODEL_ID", "gemini-2.0-flash-exp"))
+CONTENT_MODEL_ID = os.getenv("content_model_id", os.getenv("CONTENT_MODEL_ID", "gemini-2.0-flash"))

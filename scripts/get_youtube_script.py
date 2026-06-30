@@ -5,10 +5,10 @@ Chiến lược:
     2. Fallback sang yt-dlp subtitle nếu captions không có
 
 Usage:
-    python get_youtube_script.py URL [URL2 ...]
-    python get_youtube_script.py --file urls.txt
-    python get_youtube_script.py URL --lang vi
-    python get_youtube_script.py URL --output script.txt
+    python scripts/get_youtube_script.py URL [URL2 ...]
+    python scripts/get_youtube_script.py --file urls.txt
+    python scripts/get_youtube_script.py URL --lang vi
+    python scripts/get_youtube_script.py URL --output script.txt
 """
 import argparse
 import os
@@ -21,6 +21,13 @@ import tempfile
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
+
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (

@@ -9,11 +9,11 @@ yt-dlp. Other formats (canonical Douyin, TikTok long/short links, YouTube,
 and the 1000+ sites yt-dlp supports) work without changes.
 
 Usage:
-    python download_video.py URL                            # single URL
-    python download_video.py URL1 URL2 URL3                 # multiple URLs
-    python download_video.py --file urls.txt                # one URL per line
-    python download_video.py URL --output-dir downloads/    # custom folder
-    python download_video.py URL --cookies-from-browser chrome
+    python scripts/download_video.py URL                            # single URL
+    python scripts/download_video.py URL1 URL2 URL3                 # multiple URLs
+    python scripts/download_video.py --file urls.txt                # one URL per line
+    python scripts/download_video.py URL --output-dir downloads/    # custom folder
+    python scripts/download_video.py URL --cookies-from-browser chrome
                                                             # auth-walled videos
 
 After download a manifest_<timestamp>.json is written into the output folder
@@ -27,6 +27,13 @@ import sys
 from datetime import datetime
 
 import yt_dlp
+
+try:
+    from scripts._path import ensure_project_root
+except ModuleNotFoundError:
+    from _path import ensure_project_root
+
+ensure_project_root()
 
 from src.downloader import normalize_url
 from src.downloader_douyin import is_douyin_url, download_douyin

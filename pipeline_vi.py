@@ -23,6 +23,7 @@ from src.audio_merger import merge_segments, fit_segments_to_timeline
 from src.vocal_separator import separate_vocals
 from src.video_merger import merge_video
 from src.translate_pending import write_hint as _write_translate_pending_hint
+from src.translator_gemini import translate_segments_with_gemini
 from src.srt_generator import generate_srt
 from src.content_generator import generate_content
 
@@ -329,7 +330,7 @@ def run_pipeline_vi(
         generate_srt(segments, os.path.join(work_dir, "transcript_original.srt"), text_field="text")
         logger.info(f"Transcribed {len(segments)} segments")
 
-    # --- Step 4: Translate to Vietnamese ---
+    # --- Step 4: Dich sang tieng Viet bang Gemini, fallback sang huong dan thu cong ---
     logger.info("=" * 60)
     logger.info("STEP 4: Translating to Vietnamese")
     if os.path.exists(transcript_vi_path):
@@ -337,9 +338,35 @@ def run_pipeline_vi(
         with open(transcript_vi_path, encoding="utf-8") as f:
             segments = json.load(f)
     else:
-        _write_translate_pending_hint(work_dir, "vi-VN", source_lang)
-        logger.warning("Translation pending — see TRANSLATE_PENDING.txt in work dir")
-        return {"status": "translate_pending", "work_dir": work_dir}
+        if config.GOOGLE_API_KEY:
+            try:
+                logger.info(f"Translating with Gemini model: {config.CONTENT_MODEL_ID}")
+                segments = translate_segments_with_gemini(
+                    segments=segments,
+                    target_lang="vi-VN",
+                    source_lang=source_lang,
+                    api_key=config.GOOGLE_API_KEY,
+                    model_id=config.CONTENT_MODEL_ID,
+                )
+                save_transcript(segments, transcript_vi_path)
+                logger.info(f"Gemini translation saved: {transcript_vi_path}")
+            except Exception as e:
+                _write_translate_pending_hint(work_dir, "vi-VN", source_lang)
+                logger.error(f"Gemini translation failed: {e}", exc_info=True)
+                logger.warning("Translation pending — see TRANSLATE_PENDING.txt in work dir")
+                return {
+                    "status": "translate_pending",
+                    "work_dir": work_dir,
+                    "error": f"gemini_translation_failed: {e}",
+                }
+        else:
+            _write_translate_pending_hint(work_dir, "vi-VN", source_lang)
+            logger.warning("GOOGLE_API_KEY not set; use TRANSLATE_PENDING.txt with Gemini web")
+            return {"status": "translate_pending", "work_dir": work_dir}
+
+    transcript_vi_srt_path = os.path.join(work_dir, "transcript_vi.srt")
+    if not os.path.exists(transcript_vi_srt_path):
+        generate_srt(segments, transcript_vi_srt_path, text_field="text_vi")
 
     # --- Step 5: TTS for each segment (LucyLab API) ---
     logger.info("=" * 60)
