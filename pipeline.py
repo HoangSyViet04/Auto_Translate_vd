@@ -206,11 +206,17 @@ def run_pipeline(
     voice: str,
     skip_video: bool,
     output_dir: str,
+    asr_provider: str = "auto",
     resume_dir: str | None = None,
     bg_mode: str = "demucs",
     bg_duck_db: float = -12.0,
     sub_style: str = "white",
-    overlay_type: str = "default",
+    overlay_type: str = "blur",
+    overlay_x: float | None = None,
+    overlay_y: float | None = None,
+    overlay_w: float | None = None,
+    overlay_h: float | None = None,
+    overlay_blur: int | None = None,
 ) -> dict:
     start_time = time.time()
 
@@ -277,7 +283,7 @@ def run_pipeline(
             segments = json.load(f)
     else:
         logger.info("STEP 3: Transcribing audio (ASR)")
-        segments = transcribe(audio_path, lang_code)
+        segments = transcribe(audio_path, lang_code, provider=asr_provider)
         save_transcript(segments, transcript_orig_path)
         generate_srt(segments, os.path.join(work_dir, "transcript_original.srt"), text_field="text")
     logger.info(f"Transcribed {len(segments)} segments")
@@ -363,6 +369,11 @@ def run_pipeline(
             subtitle_path=transcript_jp_srt_path,
             sub_style=sub_style,
             overlay_type=overlay_type,
+            overlay_x=overlay_x,
+            overlay_y=overlay_y,
+            overlay_w=overlay_w,
+            overlay_h=overlay_h,
+            overlay_blur=overlay_blur,
         )
 
     # --- Step 8: Generate thumbnails + YouTube metadata ---

@@ -8,7 +8,6 @@ Usage:
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -26,6 +25,7 @@ from src.translate_pending import write_hint as _write_translate_pending_hint
 from src.translator_gemini import translate_segments_with_gemini
 from src.srt_generator import generate_srt
 from src.content_generator import generate_content
+from src.ffmpeg_utils import run_ffmpeg
 
 logger = setup_logging("pipeline_vi")
 
@@ -254,11 +254,17 @@ def run_pipeline_vi(
     voice_id: str,
     skip_video: bool,
     output_dir: str,
+    asr_provider: str = "auto",
     resume_dir: str | None = None,
     bg_mode: str = "demucs",
     bg_duck_db: float = -12.0,
     sub_style: str = "white",
-    overlay_type: str = "default",
+    overlay_type: str = "blur",
+    overlay_x: float | None = None,
+    overlay_y: float | None = None,
+    overlay_w: float | None = None,
+    overlay_h: float | None = None,
+    overlay_blur: int | None = None,
 ) -> dict:
     start_time = time.time()
 
@@ -327,7 +333,7 @@ def run_pipeline_vi(
             segments = json.load(f)
         logger.info(f"Loaded {len(segments)} segments from cache")
     else:
-        segments = transcribe(audio_path, lang_code)
+        segments = transcribe(audio_path, lang_code, provider=asr_provider)
         save_transcript(segments, transcript_orig_path)
         generate_srt(segments, os.path.join(work_dir, "transcript_original.srt"), text_field="text")
         logger.info(f"Transcribed {len(segments)} segments")
@@ -417,7 +423,7 @@ def run_pipeline_vi(
             src = os.path.join(seg_dir, f"seg_{seg['id']:03d}.wav")
             dst = os.path.join(slow_dir, f"seg_{seg['id']:03d}.wav")
             if os.path.exists(src):
-                subprocess.run(
+                run_ffmpeg(
                     ["ffmpeg", "-y", "-i", src, "-filter:a", f"atempo={slow_factor}", dst],
                     capture_output=True, text=True,
                 )
@@ -454,6 +460,11 @@ def run_pipeline_vi(
             subtitle_path=transcript_vi_srt_path,
             sub_style=sub_style,
             overlay_type=overlay_type,
+            overlay_x=overlay_x,
+            overlay_y=overlay_y,
+            overlay_w=overlay_w,
+            overlay_h=overlay_h,
+            overlay_blur=overlay_blur,
         )
 
     # --- Step 8: Generate thumbnails + YouTube metadata ---

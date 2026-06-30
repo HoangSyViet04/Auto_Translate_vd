@@ -1,9 +1,9 @@
 import os
 import shutil
-import subprocess
 
 from pydub import AudioSegment
 
+from src.ffmpeg_utils import run_ffmpeg
 from src.utils import setup_logging, ensure_dir
 
 logger = setup_logging("audio_merger")
@@ -73,7 +73,7 @@ def fit_segments_to_timeline(
         target_ratio = actual_s / available_s
         speed = min(target_ratio, max_speedup)
 
-        result = subprocess.run(
+        result = run_ffmpeg(
             ["ffmpeg", "-y", "-i", src, "-filter:a", f"atempo={speed:.3f}", dst],
             capture_output=True, text=True,
         )

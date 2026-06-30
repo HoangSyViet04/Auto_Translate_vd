@@ -12,9 +12,14 @@ def _require_env(key: str) -> str:
         sys.exit(1)
     return value
 
-# Required
-AZURE_SPEECH_KEY = _require_env("AZURE_SPEECH_KEY")
-AZURE_SPEECH_REGION = _require_env("AZURE_SPEECH_REGION")
+# Azure Speech is optional when ASR_PROVIDER=whisper/local or when only
+# Vietnamese LucyLab TTS is used. Japanese Azure TTS still needs these values.
+AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "")
+ASR_PROVIDER = os.getenv("ASR_PROVIDER", "auto").strip().lower()
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 
 # Optional with defaults
 TTS_VOICE = os.getenv("TTS_VOICE", "ja-JP-KeitaNeural")

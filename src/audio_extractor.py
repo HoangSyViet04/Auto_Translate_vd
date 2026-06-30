@@ -1,7 +1,7 @@
 import os
-import shutil
-import subprocess
+
 import config
+from src.ffmpeg_utils import require_tool, run_ffmpeg
 from src.utils import setup_logging
 
 logger = setup_logging("audio_extractor")
@@ -10,15 +10,12 @@ logger = setup_logging("audio_extractor")
 def extract_audio(video_path: str, output_path: str) -> str:
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video not found: {video_path}")
-    if not shutil.which("ffmpeg"):
-        raise RuntimeError(
-            "Không tìm thấy FFmpeg. Hãy cài FFmpeg, thêm vào PATH, rồi chạy lại tác vụ."
-        )
 
     sample_rate = str(config.AUDIO_SAMPLE_RATE)
+    ffmpeg = require_tool("ffmpeg")
 
     cmd = [
-        "ffmpeg", "-i", video_path,
+        ffmpeg, "-i", video_path,
         "-vn",
         "-ar", sample_rate,
         "-ac", "1",
@@ -27,9 +24,9 @@ def extract_audio(video_path: str, output_path: str) -> str:
         output_path,
     ]
 
-    logger.info(f"Extracting audio: {video_path} → {output_path}")
+    logger.info(f"Extracting audio: {video_path} -> {output_path}")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = run_ffmpeg(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg failed: {result.stderr}")
 

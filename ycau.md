@@ -1,9 +1,18 @@
-1. lỗi : 
+Tác vụ bị lỗi: Transcription failed: ASR error: WebSocket upgrade failed: Authentication error (401). Please check subscription information and region name. SessionId: 19662af65530475186dc753f50fdb556
+lỗi do hiện tại t dang k dùng đc azure để lấy api , có cách nào khác k nhỉ 
+
+2. là hãy bỏ các cái này trong file đi nha ;(failed
+Có lỗi rồi. Log bên dưới đã rút gọn để bạn thấy lỗi nằm ở bước nào.
+Tải lại log
+Mã tác vụ
+4b500c6af8ad4781a47a7066c688da6e
+Work dir
+và Tác vụ lỗi ở Bước 3/8: Bóc băng giọng nói: Transcription failed: ASR error: WebSocket upgrade failed: Authentication error (401). Please check subscription information and region name. SessionId: 19662af65530475186dc753f50fdb556)
+
+t chỉ cần đọc trong bảng này là đủ rồi : Đã nhận tác vụ và đưa vào hàng chờ.
+Bắt đầu xử lý tác vụ.
+Bước 1/8: Lấy video
 Bước 2/8: Tách âm thanh
-Tác vụ bị lỗi: [WinError 2] The system cannot find the file specified
-Tác vụ lỗi ở Bước 2/8: Tách âm thanh: [WinError 2] The system cannot find the file specified
-
-2. là khi t upload video lên thì cái cột ở giữa preview video nó k có hoạt động 
-( t cần nó có thể xem như ảnh t gửi á )
-
-3. cái phần style và overlay đấy là t có thể chỉnh sửa trên giao diện đó luôn nha :Hãy nâng cấp Backend FastAPI và hàm render FFmpeg hiện tại để khi bấm "Xuất Video Thành Phẩm", hệ thống sẽ truyền thêm 2 tham số `sub_style` và `overlay_type` từ Frontend về API; sau đó lập tức điều chỉnh lệnh FFmpeg (sử dụng đúng filter delogo/drawbox tương ứng với kiểu overlay) và cấu hình lại style chữ (fontcolor, border của sub tương ứng với style đã chọn) để xuất ra video thành phẩm chuẩn đét như cấu hình trên UI 
+Bước 2.5/8: Tách vocal/nhạc nền
+Bước 3/8: Bóc băng giọng nói
+Tác vụ bị lỗi: Transcription failed: ASR error: WebSocket upgrade failed: Authentication error (401). Please check subscription information and region name. SessionId: 19662af65530475186dc753f50fdb556

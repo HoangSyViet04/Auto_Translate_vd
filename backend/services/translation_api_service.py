@@ -60,13 +60,19 @@ async def start_translation_upload(
     filename: str = Query(..., min_length=1),
     target_language: Literal["vi", "jp"] = Query(default="vi"),
     source_lang: str = Query(default="zh"),
+    asr_provider: Literal["auto", "azure", "whisper"] = Query(default="auto"),
     bgm_mode: Literal["demucs", "duck", "none"] = Query(default="demucs"),
     bg_duck_db: float = Query(default=-12.0),
     target_voice: str = Query(default="male"),
     voice_id: str | None = Query(default=None),
     skip_video: bool = Query(default=False),
-    sub_style: Literal["white", "yellow", "red", "cyan"] = Query(default="white"),
-    overlay_type: Literal["default", "solid", "soft", "none"] = Query(default="default"),
+    sub_style: Literal["white", "yellow", "red", "cyan", "black", "bold", "neon", "soft"] = Query(default="white"),
+    overlay_type: Literal["blur", "default", "solid", "soft", "none"] = Query(default="blur"),
+    overlay_x: float | None = Query(default=None, ge=0.0, le=1.0),
+    overlay_y: float | None = Query(default=None, ge=0.0, le=1.0),
+    overlay_w: float | None = Query(default=None, ge=0.05, le=1.0),
+    overlay_h: float | None = Query(default=None, ge=0.03, le=1.0),
+    overlay_blur: int | None = Query(default=None, ge=2, le=40),
     output_dir: str | None = Query(default=None),
     resume_dir: str | None = Query(default=None),
 ) -> dict:
@@ -76,6 +82,7 @@ async def start_translation_upload(
         resume_dir=resume_dir,
         target_language=target_language,
         source_lang=source_lang,
+        asr_provider=asr_provider,
         bgm_mode=bgm_mode,
         bg_duck_db=bg_duck_db,
         target_voice=target_voice,
@@ -83,6 +90,11 @@ async def start_translation_upload(
         skip_video=skip_video,
         sub_style=sub_style,
         overlay_type=overlay_type,
+        overlay_x=overlay_x,
+        overlay_y=overlay_y,
+        overlay_w=overlay_w,
+        overlay_h=overlay_h,
+        overlay_blur=overlay_blur,
         output_dir=output_dir,
     )
     return _start_translation_job(payload)
@@ -184,6 +196,7 @@ def _run_vi_pipeline(payload: TranslateRequest) -> dict:
         url=payload.video_url,
         file_path=payload.local_file,
         source_lang=payload.source_lang,
+        asr_provider=payload.asr_provider,
         voice_id=voice_id,
         skip_video=payload.skip_video,
         output_dir=payload.output_dir or _get_default_vi_output_dir(),
@@ -192,6 +205,11 @@ def _run_vi_pipeline(payload: TranslateRequest) -> dict:
         bg_duck_db=payload.bg_duck_db,
         sub_style=payload.sub_style,
         overlay_type=payload.overlay_type,
+        overlay_x=payload.overlay_x,
+        overlay_y=payload.overlay_y,
+        overlay_w=payload.overlay_w,
+        overlay_h=payload.overlay_h,
+        overlay_blur=payload.overlay_blur,
     )
 
 
@@ -207,6 +225,7 @@ def _run_jp_pipeline(payload: TranslateRequest) -> dict:
         url=payload.video_url,
         file_path=payload.local_file,
         source_lang=payload.source_lang,
+        asr_provider=payload.asr_provider,
         voice=voice,
         skip_video=payload.skip_video,
         output_dir=payload.output_dir or config.OUTPUT_DIR,
@@ -215,6 +234,11 @@ def _run_jp_pipeline(payload: TranslateRequest) -> dict:
         bg_duck_db=payload.bg_duck_db,
         sub_style=payload.sub_style,
         overlay_type=payload.overlay_type,
+        overlay_x=payload.overlay_x,
+        overlay_y=payload.overlay_y,
+        overlay_w=payload.overlay_w,
+        overlay_h=payload.overlay_h,
+        overlay_blur=payload.overlay_blur,
     )
 
 

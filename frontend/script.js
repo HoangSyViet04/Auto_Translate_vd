@@ -1,25 +1,19 @@
 const body = document.body;
-const mainContainer = document.querySelector("#main-container");
 const form = document.querySelector("#translate-form");
 const startButton = document.querySelector("#start-button");
-const exportButton = document.querySelector("#export-button");
 const formMessage = document.querySelector("#form-message");
 const progressPanel = document.querySelector("#progress-panel");
 const statusTitle = document.querySelector("#status-title");
-const statusPill = document.querySelector("#status-pill");
 const systemState = document.querySelector("#system-state");
 const progressFill = document.querySelector("#progress-fill");
 const progressText = document.querySelector("#progress-text");
-const progressCopy = document.querySelector("#progress-copy");
 const stepIndicator = document.querySelector("#step-indicator");
-const translationIdEl = document.querySelector("#translation-id");
-const workDirEl = document.querySelector("#work-dir");
 const logsOutput = document.querySelector("#logs-output");
-const refreshLogsButton = document.querySelector("#refresh-logs");
 const dropZone = document.querySelector("#drop-zone");
 const videoFileInput = document.querySelector("#video-file");
 const fileNameEl = document.querySelector("#file-name");
 const themeToggle = document.querySelector("#theme-toggle");
+const themeIcon = document.querySelector("#theme-icon");
 const subtitleList = document.querySelector("#subtitle-list");
 const previewVideo = document.querySelector("#preview-video");
 const previewSubtitle = document.querySelector("#preview-subtitle");
@@ -29,6 +23,9 @@ const resizeHandle = document.querySelector("#resize-handle");
 const previewBoxText = document.querySelector("#preview-box-text");
 const stylePanel = document.querySelector("#panel-style-presets");
 const overlayPanel = document.querySelector("#panel-overlay-presets");
+const overlayWidthInput = document.querySelector("#overlay-width");
+const overlayHeightInput = document.querySelector("#overlay-height");
+const overlayBlurInput = document.querySelector("#overlay-blur");
 
 const STORAGE_KEY = "autoTranslateVideo.preferences";
 let pollTimer = null;
@@ -36,10 +33,13 @@ let currentTranslationId = null;
 let selectedVideoFile = null;
 let previewObjectUrl = null;
 let selectedSubStyle = "white";
-let selectedOverlayType = "default";
+let selectedOverlayType = "blur";
 let isDraggingMask = false;
 let isResizingMask = false;
+let activePointerId = null;
+let startX = 0;
 let startY = 0;
+let startLeft = 0;
 let startTop = 0;
 let startHeight = 0;
 
@@ -51,16 +51,35 @@ const friendlyCopy = {
   failed: "Có lỗi rồi. Log bên dưới đã rút gọn để bạn thấy lỗi nằm ở bước nào."
 };
 
+function normalizeStepLabel(step) {
+  return String(step || "")
+    .replaceAll("BÆ°á»›c", "Bước")
+    .replaceAll("Äang", "Đang")
+    .replaceAll("TÃ¡ch Ã¢m thanh", "Tách âm thanh")
+    .replaceAll("TÃ¡c vá»¥", "Tác vụ")
+    .replaceAll("bá»‹ lá»—i", "bị lỗi");
+}
+
+function readPreferences() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function setThemeIcon() {
+  themeIcon.textContent = body.classList.contains("dark") ? "☀" : "☾";
+}
+
 function loadPreferences() {
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  const saved = readPreferences();
   for (const [name, value] of Object.entries(saved)) {
     const input = form.elements[name];
     if (input && value) input.value = value;
   }
-  if (saved.theme === "dark") {
-    body.classList.add("dark");
-    themeToggle.textContent = "Chế độ sáng";
-  }
+  body.classList.toggle("dark", saved.theme === "dark");
+  setThemeIcon();
 }
 
 function savePreferences() {
@@ -68,6 +87,7 @@ function savePreferences() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     targetLanguage: data.targetLanguage,
     sourceLang: data.sourceLang,
+    asrProvider: data.asrProvider,
     bgmMode: data.bgmMode,
     targetVoice: data.targetVoice,
     theme: body.classList.contains("dark") ? "dark" : "light"
@@ -127,16 +147,39 @@ function formatFileSize(bytes) {
   return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function getOverlayGeometry() {
+  const container = videoBg.getBoundingClientRect();
+  const box = blurBox.getBoundingClientRect();
+  if (!container.width || !container.height) {
+    return {overlay_x: 0.09, overlay_y: 0.78, overlay_w: 0.82, overlay_h: 0.1};
+  }
+  return {
+    overlay_x: clamp((box.left - container.left) / container.width, 0, 0.98),
+    overlay_y: clamp((box.top - container.top) / container.height, 0, 0.98),
+    overlay_w: clamp(box.width / container.width, 0.05, 1),
+    overlay_h: clamp(box.height / container.height, 0.03, 1)
+  };
+}
+
+function buildOverlayPayload() {
+  return {
+    overlay_type: selectedOverlayType,
+    overlay_blur: Number(overlayBlurInput.value || 14),
+    ...getOverlayGeometry()
+  };
+}
+
 function buildJsonPayload() {
   const data = Object.fromEntries(new FormData(form).entries());
   const payload = {
     target_language: data.targetLanguage,
     source_lang: data.sourceLang,
+    asr_provider: data.asrProvider,
     bgm_mode: data.bgmMode,
     target_voice: data.targetVoice,
     sub_style: selectedSubStyle,
-    overlay_type: selectedOverlayType,
-    skip_video: false
+    skip_video: false,
+    ...buildOverlayPayload()
   };
 
   if (data.videoUrl.trim()) payload.video_url = data.videoUrl.trim();
@@ -146,14 +189,21 @@ function buildJsonPayload() {
 
 function buildUploadUrl() {
   const data = Object.fromEntries(new FormData(form).entries());
+  const overlay = buildOverlayPayload();
   const params = new URLSearchParams({
     filename: selectedVideoFile.name,
     target_language: data.targetLanguage,
     source_lang: data.sourceLang,
+    asr_provider: data.asrProvider,
     bgm_mode: data.bgmMode,
     target_voice: data.targetVoice,
     sub_style: selectedSubStyle,
-    overlay_type: selectedOverlayType,
+    overlay_type: overlay.overlay_type,
+    overlay_x: overlay.overlay_x.toFixed(4),
+    overlay_y: overlay.overlay_y.toFixed(4),
+    overlay_w: overlay.overlay_w.toFixed(4),
+    overlay_h: overlay.overlay_h.toFixed(4),
+    overlay_blur: String(overlay.overlay_blur),
     skip_video: "false"
   });
 
@@ -167,12 +217,11 @@ async function startTranslation(event) {
 
   const payload = buildJsonPayload();
   if (!payload.video_url && !payload.resume_dir && !selectedVideoFile) {
-    setMessage("Bạn cần dán link video, thả file video hoặc điền resume folder trước nhé.", true);
+    setMessage("Bạn cần dán link video, thả file video hoặc điền resume folder trước.", true);
     return;
   }
 
   startButton.disabled = true;
-  exportButton.disabled = true;
   setSystemState("queued");
   setMessage(selectedVideoFile ? "Đang upload video và đưa tác vụ vào hàng chờ..." : "Đang gửi tác vụ vào hàng chờ...");
 
@@ -184,14 +233,13 @@ async function startTranslation(event) {
     currentTranslationId = translation.translation_id;
     showProgress();
     updateProgress(translation);
-    setMessage("Đã bắt đầu xử lý. Bạn theo dõi tiến trình ở phía dưới nhé.");
+    setMessage("Đã bắt đầu xử lý. Bạn có thể theo dõi tiến trình ở thanh bên dưới.");
     startPolling();
   } catch (error) {
     setSystemState("failed");
     setMessage(`Chưa gửi được tác vụ: ${error.message}`, true);
   } finally {
     startButton.disabled = false;
-    exportButton.disabled = false;
   }
 }
 
@@ -260,29 +308,20 @@ async function fetchLogs() {
     logsOutput.textContent = data.logs.length ? data.logs.join("\n") : "Chưa có log.";
     logsOutput.scrollTop = logsOutput.scrollHeight;
   } catch {
-    logsOutput.textContent = "Chưa tải được log, thử lại sau một nhịp nhé.";
+    logsOutput.textContent = "Chưa tải được log, thử lại sau một nhịp.";
   }
 }
 
 function updateProgress(translation) {
   const status = translation.status || "queued";
   const percent = Math.max(0, Math.min(100, translation.progress_percent || 0));
-  const step = translation.current_step || "Chưa có tác vụ";
+  const step = normalizeStepLabel(translation.current_step || "Chưa có tác vụ");
 
   setSystemState(status);
   statusTitle.textContent = `Hiện tại: ${step}`;
-  statusPill.textContent = status;
-  statusPill.className = `state-pill ${status}`;
   progressFill.style.width = `${percent}%`;
   progressText.textContent = `Tiến trình hệ thống: ${percent}%`;
-  progressCopy.textContent = buildProgressCopy(translation);
   stepIndicator.textContent = stepLabel(percent);
-  translationIdEl.textContent = translation.translation_id || "-";
-  workDirEl.textContent = translation.work_dir || "-";
-
-  if (translation.error) {
-    setMessage(`Tác vụ lỗi ở ${translation.failed_step || "một bước chưa rõ"}: ${translation.error}`, true);
-  }
 }
 
 function stepLabel(percent) {
@@ -298,7 +337,7 @@ function stepLabel(percent) {
 }
 
 function buildProgressCopy(translation) {
-  const step = translation.current_step || "";
+  const step = normalizeStepLabel(translation.current_step || "");
   if (translation.status === "running" && step) {
     if (step.includes("Bước 1")) return "Đang lấy video hoặc đọc file upload.";
     if (step.includes("Bước 2.5")) return "Đang xử lý nhạc nền và vocal.";
@@ -309,22 +348,6 @@ function buildProgressCopy(translation) {
     if (step.includes("Bước 7")) return "Đang ghép audio vào video.";
   }
   return friendlyCopy[translation.status] || "Đang cập nhật tiến trình...";
-}
-
-function resetUi() {
-  clearInterval(pollTimer);
-  currentTranslationId = null;
-  form.reset();
-  setSelectedFile(null);
-  loadPreferences();
-  progressPanel.classList.add("hidden");
-  logsOutput.textContent = "Chưa có log.";
-  progressFill.style.width = "0%";
-  progressText.textContent = "Tiến trình hệ thống: 0%";
-  stepIndicator.textContent = "0/8";
-  statusTitle.textContent = "Hiện tại: Chưa có tác vụ";
-  setSystemState("idle");
-  setMessage("");
 }
 
 function selectSubtitleCard(card) {
@@ -348,68 +371,130 @@ function selectStylePreset(button) {
   previewSubtitle.className = "preview-subtitle";
   const style = button.dataset.style;
   selectedSubStyle = style || "white";
-  if (style === "yellow") previewSubtitle.classList.add("preset-yellow");
-  if (style === "red") previewSubtitle.classList.add("preset-red");
-  if (style === "cyan") previewSubtitle.classList.add("preset-cyan");
+  if (style !== "white") previewSubtitle.classList.add(`preset-${style}`);
 }
 
 function selectOverlayPreset(button) {
   overlayPanel.querySelectorAll(".preset-card").forEach((item) => item.classList.remove("active"));
   button.classList.add("active");
-  blurBox.classList.remove("overlay-solid", "overlay-soft", "overlay-none");
+  blurBox.classList.remove("overlay-blur", "overlay-solid", "overlay-soft", "overlay-none");
   const overlay = button.dataset.overlay;
-  selectedOverlayType = overlay || "default";
-  if (overlay === "solid") blurBox.classList.add("overlay-solid");
-  if (overlay === "soft") blurBox.classList.add("overlay-soft");
-  if (overlay === "none") blurBox.classList.add("overlay-none");
+  selectedOverlayType = overlay || "blur";
+  if (selectedOverlayType === "blur") blurBox.classList.add("overlay-blur");
+  if (selectedOverlayType === "solid") blurBox.classList.add("overlay-solid");
+  if (selectedOverlayType === "soft") blurBox.classList.add("overlay-soft");
+  if (selectedOverlayType === "none") blurBox.classList.add("overlay-none");
   previewBoxText.textContent = button.textContent.trim();
 }
 
+function applyOverlaySliders() {
+  const width = Number(overlayWidthInput.value || 82);
+  const height = Number(overlayHeightInput.value || 10);
+  const blur = Number(overlayBlurInput.value || 14);
+  const currentLeft = parseFloat(blurBox.style.left || "9") || 9;
+  const left = clamp(currentLeft, 0, 100 - width);
+
+  blurBox.style.width = `${width}%`;
+  blurBox.style.height = `${height}%`;
+  blurBox.style.left = `${left}%`;
+  blurBox.style.right = "auto";
+  blurBox.style.setProperty("--mask-blur", `${blur}px`);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function syncOverlaySliders() {
+  const geometry = getOverlayGeometry();
+  overlayWidthInput.value = Math.round(geometry.overlay_w * 100);
+  overlayHeightInput.value = Math.round(geometry.overlay_h * 100);
+}
+
+function startMaskDrag(event) {
+  if (event.target === resizeHandle) return;
+  event.preventDefault();
+  isDraggingMask = true;
+  isResizingMask = false;
+  activePointerId = event.pointerId;
+  startX = event.clientX;
+  startY = event.clientY;
+  startLeft = blurBox.offsetLeft;
+  startTop = blurBox.offsetTop;
+  blurBox.setPointerCapture?.(event.pointerId);
+}
+
+function startMaskResize(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  isDraggingMask = false;
+  isResizingMask = true;
+  activePointerId = event.pointerId;
+  startX = event.clientX;
+  startY = event.clientY;
+  startLeft = blurBox.offsetLeft;
+  startTop = blurBox.offsetTop;
+  startHeight = blurBox.offsetHeight;
+  blurBox.setPointerCapture?.(event.pointerId);
+}
+
 function onMaskMove(event) {
+  if (activePointerId !== null && event.pointerId !== activePointerId) return;
+  if (!isDraggingMask && !isResizingMask) return;
+
   const deltaY = event.clientY - startY;
+  const deltaX = event.clientX - startX;
   const containerHeight = videoBg.offsetHeight;
+  const containerWidth = videoBg.offsetWidth;
+  const minHeight = Math.max(28, containerHeight * 0.04);
+
   if (isDraggingMask) {
-    let newTop = startTop + deltaY;
-    newTop = Math.max(0, Math.min(containerHeight - blurBox.offsetHeight, newTop));
+    const maxTop = Math.max(0, containerHeight - blurBox.offsetHeight);
+    const maxLeft = Math.max(0, containerWidth - blurBox.offsetWidth);
+    const newTop = Math.max(0, Math.min(maxTop, startTop + deltaY));
+    const newLeft = Math.max(0, Math.min(maxLeft, startLeft + deltaX));
     blurBox.style.top = `${newTop}px`;
+    blurBox.style.left = `${(newLeft / containerWidth) * 100}%`;
     blurBox.style.bottom = "auto";
+    blurBox.style.right = "auto";
   }
+
   if (isResizingMask) {
-    let newHeight = startHeight - deltaY;
-    let newTop = startTop + deltaY;
-    if (newHeight > 28 && newTop > 0) {
+    const newTop = Math.max(0, startTop + deltaY);
+    const newHeight = Math.max(minHeight, startHeight - deltaY);
+    if (newTop + newHeight <= containerHeight) {
       blurBox.style.height = `${newHeight}px`;
       blurBox.style.top = `${newTop}px`;
       blurBox.style.bottom = "auto";
+      overlayHeightInput.value = Math.round((newHeight / containerHeight) * 100);
     }
+  }
+
+  if (isResizingMask) {
+    const left = (blurBox.offsetLeft / containerWidth) * 100;
+    blurBox.style.left = `${clamp(left, 0, 100)}%`;
+    blurBox.style.right = "auto";
   }
 }
 
-function stopMaskInteraction() {
+function stopMaskInteraction(event) {
+  if (activePointerId !== null && event.pointerId !== activePointerId) return;
+  blurBox.releasePointerCapture?.(event.pointerId);
   isDraggingMask = false;
   isResizingMask = false;
-  document.removeEventListener("mousemove", onMaskMove);
-  document.removeEventListener("mouseup", stopMaskInteraction);
+  activePointerId = null;
+  syncOverlaySliders();
 }
 
-blurBox.addEventListener("mousedown", (event) => {
-  if (event.target === resizeHandle) return;
-  isDraggingMask = true;
-  startY = event.clientY;
-  startTop = blurBox.offsetTop;
-  document.addEventListener("mousemove", onMaskMove);
-  document.addEventListener("mouseup", stopMaskInteraction);
-});
+blurBox.addEventListener("pointerdown", startMaskDrag);
+blurBox.addEventListener("pointermove", onMaskMove);
+blurBox.addEventListener("pointerup", stopMaskInteraction);
+blurBox.addEventListener("pointercancel", stopMaskInteraction);
+resizeHandle.addEventListener("pointerdown", startMaskResize);
 
-resizeHandle.addEventListener("mousedown", (event) => {
-  event.stopPropagation();
-  isResizingMask = true;
-  startY = event.clientY;
-  startTop = blurBox.offsetTop;
-  startHeight = blurBox.offsetHeight;
-  document.addEventListener("mousemove", onMaskMove);
-  document.addEventListener("mouseup", stopMaskInteraction);
-});
+overlayWidthInput.addEventListener("input", applyOverlaySliders);
+overlayHeightInput.addEventListener("input", applyOverlaySliders);
+overlayBlurInput.addEventListener("input", applyOverlaySliders);
 
 videoFileInput.addEventListener("change", () => setSelectedFile(videoFileInput.files[0]));
 
@@ -460,19 +545,19 @@ overlayPanel.addEventListener("click", (event) => {
 
 themeToggle.addEventListener("click", () => {
   body.classList.toggle("dark");
-  themeToggle.textContent = body.classList.contains("dark") ? "Chế độ sáng" : "Chế độ tối";
+  setThemeIcon();
   savePreferences();
 });
 
 document.querySelector("#load-video-button").addEventListener("click", () => {
   const input = document.querySelector("#video-url");
   input.focus();
-  setMessage("Dán link hoặc chọn file xong bấm nút chạy pipeline nhé.");
+  setMessage("Dán link xong bấm Bắt đầu pipeline để tạo tác vụ.");
 });
 
 form.addEventListener("submit", startTranslation);
-refreshLogsButton.addEventListener("click", fetchLogs);
 form.addEventListener("change", savePreferences);
 
 loadPreferences();
+applyOverlaySliders();
 setSystemState("idle");

@@ -1,13 +1,58 @@
 import json
 import time
+
 import azure.cognitiveservices.speech as speechsdk
+
 import config
 from src.utils import setup_logging
 
 logger = setup_logging("transcriber")
 
+WHISPER_LANG_MAP = {
+    "zh-CN": "zh",
+    "zh": "zh",
+    "en-US": "en",
+    "en": "en",
+    "ja-JP": "ja",
+    "ja": "ja",
+    "vi-VN": "vi",
+    "vi": "vi",
+}
 
-def transcribe(audio_path: str, language: str) -> list[dict]:
+
+def transcribe(audio_path: str, language: str, provider: str | None = None) -> list[dict]:
+    selected_provider = (provider or config.ASR_PROVIDER or "auto").lower()
+    if selected_provider in {"whisper", "faster-whisper", "local"}:
+        return transcribe_with_whisper(audio_path, language)
+    if selected_provider == "azure":
+        try:
+            return transcribe_with_azure(audio_path, language)
+        except RuntimeError as exc:
+            if not _is_azure_auth_error(str(exc)):
+                raise
+            logger.warning("Azure ASR authentication failed; falling back to faster-whisper")
+            return transcribe_with_whisper(audio_path, language)
+
+    if config.AZURE_SPEECH_KEY and config.AZURE_SPEECH_REGION:
+        try:
+            return transcribe_with_azure(audio_path, language)
+        except RuntimeError as exc:
+            if not _is_azure_auth_error(str(exc)):
+                raise
+            logger.warning("Azure ASR authentication failed; falling back to faster-whisper")
+    else:
+        logger.info("Azure ASR is not configured; using faster-whisper")
+
+    return transcribe_with_whisper(audio_path, language)
+
+
+def transcribe_with_azure(audio_path: str, language: str) -> list[dict]:
+    if not config.AZURE_SPEECH_KEY or not config.AZURE_SPEECH_REGION:
+        raise RuntimeError(
+            "Azure Speech chưa được cấu hình. Điền AZURE_SPEECH_KEY/AZURE_SPEECH_REGION "
+            "hoặc đặt ASR_PROVIDER=whisper để dùng nhận diện local."
+        )
+
     speech_config = speechsdk.SpeechConfig(
         subscription=config.AZURE_SPEECH_KEY,
         region=config.AZURE_SPEECH_REGION,
@@ -67,7 +112,7 @@ def transcribe(audio_path: str, language: str) -> list[dict]:
     recognizer.canceled.connect(on_canceled)
     recognizer.session_stopped.connect(on_session_stopped)
 
-    logger.info(f"Starting transcription: {audio_path} (language: {language})")
+    logger.info(f"Starting Azure transcription: {audio_path} (language: {language})")
     recognizer.start_continuous_recognition()
 
     while not done:
@@ -78,21 +123,71 @@ def transcribe(audio_path: str, language: str) -> list[dict]:
     if errors:
         raise RuntimeError(f"Transcription failed: {'; '.join(errors)}")
 
-    logger.info(f"Transcription complete: {len(segments)} raw segments")
+    logger.info(f"Azure transcription complete: {len(segments)} raw segments")
+    return _finalize_segments(segments)
 
-    # Split long segments into ~MAX_SEGMENT_DURATION chunks
+
+def transcribe_with_whisper(audio_path: str, language: str) -> list[dict]:
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:
+        raise RuntimeError(
+            "Chưa cài faster-whisper để nhận diện local. Chạy: "
+            "pip install faster-whisper hoặc đặt lại ASR_PROVIDER=azure."
+        ) from exc
+
+    whisper_language = WHISPER_LANG_MAP.get(language, language.split("-")[0].lower())
+    logger.info(
+        "Starting faster-whisper transcription: "
+        f"{audio_path} (language: {whisper_language}, model: {config.WHISPER_MODEL})"
+    )
+
+    model = WhisperModel(
+        config.WHISPER_MODEL,
+        device=config.WHISPER_DEVICE,
+        compute_type=config.WHISPER_COMPUTE_TYPE,
+    )
+    raw_segments, _info = model.transcribe(
+        audio_path,
+        language=whisper_language,
+        vad_filter=True,
+        beam_size=5,
+    )
+
+    segments = []
+    for index, segment in enumerate(raw_segments, start=1):
+        text = segment.text.strip()
+        if not text:
+            continue
+        start = round(float(segment.start), 3)
+        end = round(float(segment.end), 3)
+        segments.append({
+            "id": index,
+            "text": text,
+            "start": start,
+            "end": end,
+            "duration": round(end - start, 3),
+        })
+        logger.info(f"Segment {index}: [{start:.1f}s-{end:.1f}s] {text[:50]}...")
+
+    logger.info(f"faster-whisper transcription complete: {len(segments)} raw segments")
+    return _finalize_segments(segments)
+
+
+def _is_azure_auth_error(message: str) -> bool:
+    lower = message.lower()
+    return "authentication error" in lower or "401" in lower or "subscription" in lower
+
+
+def _finalize_segments(segments: list[dict]) -> list[dict]:
+    logger.info(f"Transcription complete: {len(segments)} raw segments")
     segments = split_long_segments(segments, max_duration=10.0)
     logger.info(f"After splitting: {len(segments)} segments")
-
     return segments
 
 
 def split_long_segments(segments: list[dict], max_duration: float = 10.0) -> list[dict]:
-    """Split segments longer than max_duration into smaller ones at sentence boundaries.
-
-    Uses punctuation (. ! ? ;) to find split points. Distributes time
-    proportionally based on character count.
-    """
+    """Split segments longer than max_duration into smaller ones at sentence boundaries."""
     import re
     result = []
     new_id = 0
@@ -103,26 +198,20 @@ def split_long_segments(segments: list[dict], max_duration: float = 10.0) -> lis
             result.append({**seg, "id": new_id})
             continue
 
-        # Split text at sentence boundaries
         sentences = re.split(r'(?<=[.!?;])\s+', seg["text"].strip())
         if len(sentences) <= 1:
-            # No sentence boundary found, keep as-is
             new_id += 1
             result.append({**seg, "id": new_id})
             continue
 
-        # Group sentences into chunks that fit within max_duration
         total_chars = sum(len(s) for s in sentences)
         total_duration = seg["duration"]
         start = seg["start"]
-
         chunk_sentences = []
         chunk_chars = 0
 
         for sentence in sentences:
             estimated_chunk_duration = (chunk_chars + len(sentence)) / total_chars * total_duration
-
-            # If adding this sentence exceeds max_duration and we already have content, flush
             if chunk_sentences and estimated_chunk_duration > max_duration:
                 chunk_duration = chunk_chars / total_chars * total_duration
                 end = round(start + chunk_duration, 3)
@@ -141,7 +230,6 @@ def split_long_segments(segments: list[dict], max_duration: float = 10.0) -> lis
             chunk_sentences.append(sentence)
             chunk_chars += len(sentence)
 
-        # Flush remaining
         if chunk_sentences:
             end = seg["end"]
             new_id += 1

@@ -11,9 +11,9 @@ CLI so the writer never touches ``torchaudio.save`` — that path requires
 FFmpeg ABI we can't guarantee.  Audio is written via ``soundfile`` instead.
 """
 import os
-import subprocess
 
 import config
+from src.ffmpeg_utils import run_ffmpeg
 from src.utils import setup_logging
 
 logger = setup_logging("vocal_separator")
@@ -135,7 +135,7 @@ def _normalize(src: str, dst: str, sample_rate: str) -> None:
         "-acodec", "pcm_s16le",
         dst,
     ]
-    result = subprocess.run(
+    result = run_ffmpeg(
         cmd, capture_output=True, encoding="utf-8", errors="replace"
     )
     if result.returncode != 0 or not os.path.exists(dst) or os.path.getsize(dst) == 0:

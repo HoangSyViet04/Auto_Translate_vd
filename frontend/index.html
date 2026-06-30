@@ -11,22 +11,26 @@
       <header class="app-header">
         <div class="brand-block">
           <div class="brand-row">
-            <span class="brand-mark" aria-hidden="true">▰</span>
+            <span class="brand-mark" aria-hidden="true">AT</span>
             <h1>Auto Translate Video</h1>
             <span class="version-badge">v2.5</span>
           </div>
-          <p>Hệ thống bóc băng, dịch thuật và lồng tiếng tự động cho video ngắn Douyin / TikTok</p>
         </div>
 
         <div class="header-actions">
-          <button id="theme-toggle" class="light-button" type="button">Chế độ tối</button>
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Đổi giao diện" title="Đổi giao diện">
+            <span id="theme-icon" aria-hidden="true">☾</span>
+          </button>
           <span id="system-state" class="state-pill waiting">Chờ cấu hình</span>
         </div>
       </header>
 
       <form id="translate-form" class="workspace-grid" autocomplete="off">
         <section class="panel subtitle-panel" aria-labelledby="subtitle-title">
-          <h2 id="subtitle-title">Biên tập phụ đề dịch thuật (Gemini)</h2>
+          <div class="panel-heading">
+            <h2 id="subtitle-title">Phụ đề dịch</h2>
+            <span>Gemini preview</span>
+          </div>
 
           <div id="subtitle-list" class="subtitle-list">
             <article class="subtitle-card active" data-preview-text="Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?">
@@ -44,46 +48,53 @@
         </section>
 
         <section class="panel video-panel" aria-labelledby="video-title">
-          <div class="panel-group">
-            <h2 id="video-title">Nguồn video đầu vào</h2>
-            <div class="source-row">
-              <input id="video-url" name="videoUrl" type="url" placeholder="Dán link Douyin, TikTok, YouTube..." />
-              <button id="load-video-button" class="dark-button" type="button">Tải video</button>
-            </div>
-
-            <label id="drop-zone" class="drop-zone" for="video-file">
-              <input id="video-file" name="videoFile" type="file" accept="video/*" />
-              <strong>Thả video hoặc bấm để chọn file</strong>
-              <span id="file-name">MP4, MOV, MKV, WEBM</span>
-            </label>
+          <div class="panel-heading">
+            <h2 id="video-title">Preview video</h2>
+            <span>Kéo vùng che trực tiếp trên video</span>
           </div>
 
-          <div class="panel-group preview-group">
-            <h2>Căn chỉnh vùng che sub</h2>
-            <div class="video-shell">
-              <div id="video-bg" class="phone-preview">
-                <video id="preview-video" class="preview-video" muted controls playsinline hidden></video>
-                <div id="blur-box" class="mask-box">
-                  <span id="preview-box-text">Mặc định / Hộp đen</span>
-                  <p id="preview-subtitle" class="preview-subtitle">Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?</p>
-                  <span id="resize-handle" class="resize-handle" aria-hidden="true"></span>
-                </div>
+          <div class="video-shell">
+            <div id="video-bg" class="phone-preview">
+              <video id="preview-video" class="preview-video" muted controls playsinline hidden></video>
+              <div id="blur-box" class="mask-box overlay-blur">
+                <span id="preview-box-text">Blur filter</span>
+                <p id="preview-subtitle" class="preview-subtitle">Bạn đã từng ăn loại muối hồng Himalaya vừa lãng mạn, vừa cao cấp chưa?</p>
+                <span id="resize-handle" class="resize-handle" aria-hidden="true"></span>
               </div>
             </div>
           </div>
 
           <div class="panel-footer">
-            <button id="start-button" class="neo-button run-button" type="submit">Khóa vùng che & chạy pipeline</button>
+            <button id="start-button" class="primary-button run-button" type="submit">Bắt đầu pipeline</button>
           </div>
         </section>
 
         <aside class="panel config-panel" aria-labelledby="config-title">
           <div class="config-scroll">
-            <h2 id="config-title">Hậu kỳ nâng cao</h2>
+            <div class="config-card source-card">
+              <div class="panel-heading">
+                <h2>Nguồn video</h2>
+                <span>Link hoặc file</span>
+              </div>
+              <div class="source-row">
+                <input id="video-url" name="videoUrl" type="url" placeholder="Dán link Douyin, TikTok, YouTube..." />
+                <button id="load-video-button" class="dark-button" type="button">Dùng link</button>
+              </div>
+              <label id="drop-zone" class="drop-zone" for="video-file">
+                <input id="video-file" name="videoFile" type="file" accept="video/*" />
+                <strong>Thả video hoặc bấm để chọn file</strong>
+                <span id="file-name">MP4, MOV, MKV, WEBM</span>
+              </label>
+            </div>
+
+            <div class="panel-heading config-title">
+              <h2 id="config-title">Cấu hình hậu kỳ</h2>
+              <span>Output & style</span>
+            </div>
 
             <div class="config-card">
               <label>
-                <span>Ngôn ngữ nguồn / đích:</span>
+                <span>Ngôn ngữ nguồn / đích</span>
                 <div class="two-cols">
                   <select id="source-lang" name="sourceLang">
                     <option value="zh">Trung (Douyin)</option>
@@ -100,7 +111,15 @@
 
               <div class="two-cols">
                 <label>
-                  <span>Giọng đọc AI:</span>
+                  <span>Nhận diện giọng nói</span>
+                  <select id="asr-provider" name="asrProvider">
+                    <option value="auto">Auto</option>
+                    <option value="whisper">Local Whisper</option>
+                    <option value="azure">Azure</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Giọng đọc AI</span>
                   <select id="target-voice" name="targetVoice">
                     <option value="male">Nam miền Bắc</option>
                     <option value="female">Nữ miền Nam</option>
@@ -108,8 +127,11 @@
                     <option value="ja-JP-NanamiNeural">ja-JP-Nanami</option>
                   </select>
                 </label>
+              </div>
+
+              <div class="two-cols">
                 <label>
-                  <span>Nhạc nền BGM:</span>
+                  <span>Nhạc nền BGM</span>
                   <select id="bgm-mode" name="bgmMode">
                     <option value="demucs">Demucs</option>
                     <option value="duck">Duck</option>
@@ -127,26 +149,45 @@
             <div class="config-card">
               <div class="tabs" role="tablist" aria-label="Tùy chỉnh hiển thị">
                 <button id="tab-style-btn" class="tab-button active" type="button" data-tab="style">Style chữ</button>
-                <button id="tab-overlay-btn" class="tab-button" type="button" data-tab="overlay">Lớp phủ che</button>
+                <button id="tab-overlay-btn" class="tab-button" type="button" data-tab="overlay">Lớp che</button>
               </div>
 
-              <div id="panel-style-presets" class="preset-grid">
-                <button class="preset-card preset-white active" type="button" data-style="white">Xin chào</button>
-                <button class="preset-card preset-yellow" type="button" data-style="yellow">Xin chào</button>
-                <button class="preset-card preset-red" type="button" data-style="red">Xin chào</button>
-                <button class="preset-card preset-cyan" type="button" data-style="cyan">Xin chào</button>
+              <div id="panel-style-presets" class="preset-grid style-grid">
+                <button class="preset-card preset-white active" type="button" data-style="white">Trắng</button>
+                <button class="preset-card preset-yellow" type="button" data-style="yellow">Vàng</button>
+                <button class="preset-card preset-red" type="button" data-style="red">Đỏ</button>
+                <button class="preset-card preset-cyan" type="button" data-style="cyan">Cyan</button>
+                <button class="preset-card preset-black" type="button" data-style="black">Đen</button>
+                <button class="preset-card preset-bold" type="button" data-style="bold">Bold</button>
+                <button class="preset-card preset-neon" type="button" data-style="neon">Neon</button>
+                <button class="preset-card preset-soft" type="button" data-style="soft">Soft</button>
               </div>
 
-              <div id="panel-overlay-presets" class="preset-grid hidden">
-                <button class="preset-card active" type="button" data-overlay="default">Mặc định</button>
-                <button class="preset-card" type="button" data-overlay="solid">Hộp đen</button>
-                <button class="preset-card" type="button" data-overlay="soft">Mờ 50%</button>
-                <button class="preset-card" type="button" data-overlay="none">Không che</button>
+              <div id="panel-overlay-presets" class="overlay-panel hidden">
+                <div class="preset-grid">
+                  <button class="preset-card active" type="button" data-overlay="blur">Blur filter</button>
+                  <button class="preset-card" type="button" data-overlay="solid">Hộp đen</button>
+                  <button class="preset-card" type="button" data-overlay="soft">Mờ 50%</button>
+                  <button class="preset-card" type="button" data-overlay="none">Không che</button>
+                </div>
+
+                <div class="slider-grid">
+                  <label>
+                    <span>Width</span>
+                    <input id="overlay-width" type="range" min="18" max="96" value="82" />
+                  </label>
+                  <label>
+                    <span>Height</span>
+                    <input id="overlay-height" type="range" min="4" max="38" value="10" />
+                  </label>
+                  <label>
+                    <span>Blur</span>
+                    <input id="overlay-blur" type="range" min="2" max="40" value="14" />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
-
-          <button id="export-button" class="export-button" type="submit">Xuất video thành phẩm</button>
         </aside>
       </form>
 
@@ -164,23 +205,6 @@
       </footer>
 
       <section id="progress-panel" class="log-drawer hidden" aria-label="Log tác vụ">
-        <div class="log-head">
-          <div>
-            <span id="status-pill" class="state-pill">queued</span>
-            <span id="progress-copy">Đang xếp hàng xử lý...</span>
-          </div>
-          <button id="refresh-logs" class="small-button" type="button">Tải lại log</button>
-        </div>
-        <dl class="task-meta">
-          <div>
-            <dt>Mã tác vụ</dt>
-            <dd id="translation-id">-</dd>
-          </div>
-          <div>
-            <dt>Work dir</dt>
-            <dd id="work-dir">-</dd>
-          </div>
-        </dl>
         <pre id="logs-output" class="logs-output">Chưa có log.</pre>
       </section>
 
